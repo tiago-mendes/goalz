@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\UserRole;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -18,6 +19,10 @@ use Illuminate\Support\Str;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
+ * @property UserRole $role
+ * @property bool $is_active
+ * @property string|null $default_monthly_income
+ * @property string $currency
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -40,6 +45,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'role' => UserRole::class,
+            'is_active' => 'boolean',
+            'default_monthly_income' => 'decimal:2',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
