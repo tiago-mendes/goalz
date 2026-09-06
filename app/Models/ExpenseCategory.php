@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['name', 'icon', 'color', 'is_active'])]
 class ExpenseCategory extends Model
@@ -34,6 +35,12 @@ class ExpenseCategory extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return HasMany<FixedExpense, $this> */
+    public function fixedExpenses(): HasMany
+    {
+        return $this->hasMany(FixedExpense::class);
     }
 
     public function safeIcon(): string
