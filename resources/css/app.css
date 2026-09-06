@@ -37,6 +37,15 @@
 }
 
 @layer base {
+    [data-goalz-theme='sage'] {
+        --goalz-background: #f1f7ef;
+        --goalz-toolbar: #e2edde;
+        --goalz-foreground: #203b2c;
+        --goalz-muted: #4a6351;
+        --goalz-accent: #315d40;
+        --goalz-accent-hover: #244730;
+    }
+
 
     *,
     ::after,
