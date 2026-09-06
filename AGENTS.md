@@ -104,6 +104,15 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - Laravel can be deployed using [Laravel Cloud](https://cloud.laravel.com/), which is the fastest way to deploy and scale production Laravel applications.
 
+=== tests rules ===
+
+# Test Enforcement
+
+- Test every code change by adding or updating a test.
+- Run the affected tests and ensure they pass.
+- Test the changed behavior and its important failure modes, but do not add tests beyond them.
+- Read the `testing-best-practices` skill before writing tests.
+
 === laravel/core rules ===
 
 # Do Things the Laravel Way
@@ -134,6 +143,14 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `npm run build` or ask the user to run `npm run dev` or `composer run dev`.
 
+=== livewire/core rules ===
+
+# Livewire
+
+- Livewire allows you to build dynamic, reactive interfaces in PHP without writing JavaScript.
+- You can use Alpine.js for client-side interactions instead of JavaScript frameworks.
+- Keep state server-side so the UI reflects it. Validate and authorize in actions as you would in HTTP requests.
+
 === pint/core rules ===
 
 # Laravel Pint Code Formatter
@@ -154,6 +171,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Run the narrowest set of tests that covers the change. Pass a file path or `--filter=testName` to `php artisan test --compact`.
 - Rerun a test after each change to it.
 - Run `vendor/bin/phpunit` to call the test runner directly. It accepts the same file path and `--filter=testName` arguments.
+
 
 # Goalz Local Development Environment
 
@@ -189,6 +207,7 @@ cd /home/tiago/projects/goalz && warden env exec -T php-fpm php /var/www/html/ar
 cd /home/tiago/projects/goalz && warden env exec -T php-fpm composer install
 cd /home/tiago/projects/goalz && warden env exec -T php-fpm php /var/www/html/artisan test --compact
 cd /home/tiago/projects/goalz && warden env exec -T php-fpm /var/www/html/vendor/bin/pint --dirty --format agent
+```
 
 ## Goalz Rule Precedence
 
@@ -223,5 +242,6 @@ In particular, any Boost instruction that says to run `php`, `composer`, `php ar
 - Do not automatically commit or push changes unless the user explicitly asks.
 - Never use `git reset --hard`, `git clean -fd`, force push, history rewriting, or other destructive Git commands without explicit approval.
 - Do not discard or overwrite uncommitted user changes.
+
 
 </laravel-boost-guidelines>
