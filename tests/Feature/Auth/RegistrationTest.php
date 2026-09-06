@@ -37,6 +37,7 @@ class RegistrationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
+        $this->assertSame(8, auth()->user()->expenseCategories()->count());
 
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',

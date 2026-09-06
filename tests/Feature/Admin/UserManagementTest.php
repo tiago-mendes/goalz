@@ -60,6 +60,7 @@ class UserManagementTest extends TestCase
             ->call('save')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
 
         $user = User::where('email', 'new@example.com')->sole();
+        $this->assertSame(8, $user->expenseCategories()->count());
         $this->assertSame($role, $user->role->value);
         $this->assertTrue($user->is_active);
         $this->assertSame('USD', $user->currency);

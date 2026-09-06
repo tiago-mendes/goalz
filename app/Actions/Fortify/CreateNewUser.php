@@ -2,10 +2,12 @@
 
 namespace App\Actions\Fortify;
 
+use App\Actions\ProvisionExpenseCategories;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
 use App\UserRole;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
@@ -35,7 +37,10 @@ class CreateNewUser implements CreatesNewUsers
         $user->is_active = true;
         $user->currency = 'BRL';
         $user->default_monthly_income = null;
-        $user->save();
+        DB::transaction(function () use ($user): void {
+            $user->save();
+            app(ProvisionExpenseCategories::class)->handle($user);
+        });
 
         return $user;
     }
