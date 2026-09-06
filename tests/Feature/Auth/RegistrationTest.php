@@ -37,5 +37,39 @@ class RegistrationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'test@example.com',
+            'role' => 'user',
+            'is_active' => true,
+            'currency' => 'BRL',
+            'default_monthly_income' => null,
+        ]);
+    }
+
+    public function test_registration_ignores_submitted_account_fields(): void
+    {
+        $response = $this->post(route('register.store'), [
+            'name' => 'John Doe',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'role' => 'admin',
+            'is_active' => false,
+            'currency' => 'USD',
+            'default_monthly_income' => '12345.67',
+        ]);
+
+        $response->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'email' => 'test@example.com',
+            'role' => 'user',
+            'is_active' => true,
+            'currency' => 'BRL',
+            'default_monthly_income' => null,
+        ]);
     }
 }

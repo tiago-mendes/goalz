@@ -17,9 +17,9 @@ class AuthenticationTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_users_can_authenticate_using_the_login_screen(): void
+    public function test_active_users_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['is_active' => true]);
 
         $response = $this->post(route('login.store'), [
             'email' => $user->email,
@@ -30,7 +30,39 @@ class AuthenticationTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('dashboard', absolute: false));
 
-        $this->assertAuthenticated();
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_inactive_users_cannot_authenticate_with_a_valid_password(): void
+    {
+        $user = User::factory()->create(['is_active' => false]);
+
+        $response = $this->from(route('login'))->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'is_active' => true,
+            'remember' => true,
+        ]);
+
+        $response->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => __('auth.failed')])
+            ->assertSessionMissing(auth()->guard()->getName());
+
+        $this->assertGuest();
+    }
+
+    public function test_unknown_users_cannot_authenticate(): void
+    {
+        $response = $this->from(route('login'))->post(route('login.store'), [
+            'email' => 'missing@example.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => __('auth.failed')])
+            ->assertSessionMissing(auth()->guard()->getName());
+
+        $this->assertGuest();
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
@@ -42,7 +74,8 @@ class AuthenticationTest extends TestCase
             'password' => 'wrong-password',
         ]);
 
-        $response->assertSessionHasErrorsIn('email');
+        $response->assertSessionHasErrorsIn('email')
+            ->assertSessionMissing(auth()->guard()->getName());
 
         $this->assertGuest();
     }
