@@ -121,6 +121,37 @@ class ExpenseCategoriesTest extends TestCase
         $this->assertDatabaseHas('expense_categories', ['id' => $category->id, 'name' => 'Pets', 'icon' => 'heart', 'color' => '#ABCDEF', 'is_active' => false]);
     }
 
+    public function test_icon_picker_renders_options_and_saves_a_new_icon(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $component = Livewire::test('pages::expense-categories.form')->assertSet('icon', 'tag');
+        foreach (ExpenseCategory::ICONS as $label) {
+            $component->assertSee('aria-label="'.$label.'"', false);
+        }
+        $component->set('name', 'Travel')->set('icon', 'paper-airplane')
+            ->call('save')->assertHasNoErrors()->assertRedirect(route('expense-categories.index'));
+
+        $this->assertSame('paper-airplane', $user->expenseCategories()->sole()->icon);
+    }
+
+    public function test_icon_picker_marks_the_saved_icon_and_updates_selection(): void
+    {
+        $category = ExpenseCategory::factory()->create(['icon' => 'gift']);
+        $this->actingAs($category->user);
+
+        $component = Livewire::test('pages::expense-categories.form', ['categoryId' => $category->id])
+            ->assertSet('icon', 'gift');
+        $this->assertMatchesRegularExpression('/<button[^>]*aria-label="Gifts"[^>]*aria-pressed="true"/s', $component->html());
+        $component->set('icon', 'wifi');
+        $this->assertMatchesRegularExpression('/<button[^>]*aria-label="Internet"[^>]*aria-pressed="true"/s', $component->html());
+        $this->assertMatchesRegularExpression('/<button[^>]*aria-label="Gifts"[^>]*aria-pressed="false"/s', $component->html());
+        $component->call('save')->assertHasNoErrors();
+
+        $this->assertSame('wifi', $category->refresh()->icon);
+    }
+
     #[TestWith([true, false])]
     #[TestWith([false, true])]
     public function test_user_can_change_active_status(bool $before, bool $after): void
