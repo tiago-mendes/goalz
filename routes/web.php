@@ -6,6 +6,9 @@ Route::view('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('expense-categories', 'pages::expense-categories.index')->name('expense-categories.index');
+    Route::livewire('expense-categories/create', 'pages::expense-categories.form')->name('expense-categories.create');
+    Route::livewire('expense-categories/{categoryId}/edit', 'pages::expense-categories.form')->whereNumber('categoryId')->name('expense-categories.edit');
 });
 
 Route::middleware(['auth', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {

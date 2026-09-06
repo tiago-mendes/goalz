@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ProvisionExpenseCategories;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
@@ -92,6 +93,9 @@ new #[Title('Manage user')] class extends Component {
                 $user->password = $validated['password'];
             }
             $user->save();
+            if ($user->wasRecentlyCreated) {
+                app(ProvisionExpenseCategories::class)->handle($user);
+            }
         });
 
         $this->reset('password', 'password_confirmation');
