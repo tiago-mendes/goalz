@@ -16,6 +16,7 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="tag" :href="route('expense-categories.index')" :current="request()->routeIs('expense-categories.*')" wire:navigate>Categories</flux:sidebar.item>
+                    <flux:sidebar.item :href="route('monthly-income.index')" :current="request()->routeIs('monthly-income.*')" wire:navigate>Income</flux:sidebar.item>
                     @can('manage-users')
                         <flux:sidebar.item :href="route('admin.users.index')" :current="request()->routeIs('admin.*')" wire:navigate>Admin</flux:sidebar.item>
                     @endcan

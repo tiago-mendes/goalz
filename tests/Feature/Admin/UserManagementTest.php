@@ -7,6 +7,7 @@ use App\UserRole;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
@@ -56,34 +57,34 @@ class UserManagementTest extends TestCase
         Livewire::test('pages::admin.users.form')
             ->set('name', 'New Account')->set('email', 'new@example.com')
             ->set('password', 'safe-password-123')->set('password_confirmation', 'safe-password-123')
-            ->set('role', $role)->set('currency', 'USD')->set('default_monthly_income', '1234.50')
-            ->call('save')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
+            ->set('role', $role)->set('currency', 'USD')
+            ->call('save', ['default_monthly_income' => '1234.50'])->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
 
         $user = User::where('email', 'new@example.com')->sole();
         $this->assertSame(8, $user->expenseCategories()->count());
         $this->assertSame($role, $user->role->value);
         $this->assertTrue($user->is_active);
         $this->assertSame('USD', $user->currency);
-        $this->assertSame('1234.50', $user->default_monthly_income);
+        $this->assertNull($user->default_monthly_income);
         $this->assertTrue(Hash::check('safe-password-123', $user->password));
     }
 
-    public function test_admin_can_edit_account_fields_without_changing_password(): void
+    public function test_admin_can_edit_account_fields_without_changing_password_or_income(): void
     {
         $this->actingAs(User::factory()->create(['role' => UserRole::Admin]));
-        $user = User::factory()->create();
+        $user = User::factory()->create(['default_monthly_income' => '987654.32']);
         $password = $user->password;
 
         Livewire::test('pages::admin.users.form', ['user' => $user])
             ->set('name', 'Updated Name')->set('email', 'updated@example.com')
-            ->set('currency', 'EUR')->set('default_monthly_income', '0')
-            ->call('save')->assertHasNoErrors();
+            ->set('currency', 'EUR')
+            ->call('save', ['default_monthly_income' => '0'])->assertHasNoErrors();
 
         $user->refresh();
         $this->assertSame('Updated Name', $user->name);
         $this->assertSame('updated@example.com', $user->email);
         $this->assertSame('EUR', $user->currency);
-        $this->assertSame('0.00', $user->default_monthly_income);
+        $this->assertSame('987654.32', $user->default_monthly_income);
         $this->assertSame($password, $user->password);
         $this->assertNull($user->email_verified_at);
     }
@@ -145,10 +146,6 @@ class UserManagementTest extends TestCase
     #[TestWith(['is_active', 'invalid'])]
     #[TestWith(['currency', 'USDD'])]
     #[TestWith(['currency', 'usd'])]
-    #[TestWith(['default_monthly_income', '1e3'])]
-    #[TestWith(['default_monthly_income', '-1'])]
-    #[TestWith(['default_monthly_income', '0.001'])]
-    #[TestWith(['default_monthly_income', '10000000000000.00'])]
     #[TestWith(['email', 'invalid'])]
     public function test_invalid_account_values_are_not_saved(string $field, mixed $value): void
     {
@@ -174,6 +171,23 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseCount('users', 1);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_admin_cannot_inject_default_income_into_create_or_edit_state(bool $editing): void
+    {
+        $this->actingAs(User::factory()->create(['role' => UserRole::Admin]));
+        $user = User::factory()->create(['default_monthly_income' => '987654.32']);
+        $component = Livewire::test('pages::admin.users.form', $editing ? ['user' => $user] : []);
+
+        try {
+            $component->set('default_monthly_income', '1.00');
+            $this->fail('Financial data must not be accepted as admin form state.');
+        } catch (PublicPropertyNotFoundException) {
+            $this->assertSame('987654.32', $user->refresh()->default_monthly_income);
+            $this->assertDatabaseCount('users', 2);
+        }
+    }
+
     public function test_list_exposes_only_account_summary_and_form_never_loads_secrets(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
@@ -183,6 +197,8 @@ class UserManagementTest extends TestCase
         $this->get(route('admin.users.index'))->assertOk()
             ->assertDontSee('987654.32')->assertDontSee($user->password)->assertDontSee($user->remember_token);
         $this->get(route('admin.users.edit', $user))->assertOk()
+            ->assertDontSee('987654.32')->assertDontSee('default_monthly_income')
+            ->assertDontSeeText('Default monthly income')
             ->assertDontSee($user->password)->assertDontSee($user->remember_token)
             ->assertDontSeeText('Expenses')->assertDontSeeText('Goal contributions');
     }
