@@ -46,6 +46,17 @@
         --goalz-accent-hover: #244730;
     }
 
+    [data-goalz-shell] {
+        --goalz-shell-surface: color-mix(in srgb, var(--goalz-toolbar) 88%, var(--goalz-accent));
+        --goalz-shell-border: color-mix(in srgb, var(--goalz-toolbar) 70%, var(--goalz-accent));
+        --goalz-shell-wordmark: var(--goalz-foreground);
+    }
+
+    .dark [data-goalz-shell] {
+        --goalz-shell-surface: color-mix(in srgb, var(--color-zinc-900) 80%, var(--goalz-accent));
+        --goalz-shell-border: color-mix(in srgb, var(--color-zinc-700) 65%, var(--goalz-accent));
+        --goalz-shell-wordmark: var(--goalz-background);
+    }
 
     *,
     ::after,
