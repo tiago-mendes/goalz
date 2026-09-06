@@ -66,6 +66,12 @@ class User extends Authenticatable
         return $this->hasMany(MonthlyIncome::class);
     }
 
+    /** @return HasMany<FixedExpense, $this> */
+    public function fixedExpenses(): HasMany
+    {
+        return $this->hasMany(FixedExpense::class);
+    }
+
     /**
      * Get the user's initials
      */

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\FixedExpense;
 use App\Models\User;
 use App\UserRole;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -192,14 +193,17 @@ class UserManagementTest extends TestCase
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $user = User::factory()->create(['default_monthly_income' => '987654.32']);
+        FixedExpense::factory()->for($user)->create(['name' => 'Private recurring obligation', 'amount' => '54321.98']);
         $this->actingAs($admin);
 
         $this->get(route('admin.users.index'))->assertOk()
-            ->assertDontSee('987654.32')->assertDontSee($user->password)->assertDontSee($user->remember_token);
+            ->assertDontSee('987654.32')->assertDontSee($user->password)->assertDontSee($user->remember_token)
+            ->assertDontSeeText('Private recurring obligation')->assertDontSee('54321.98');
         $this->get(route('admin.users.edit', $user))->assertOk()
             ->assertDontSee('987654.32')->assertDontSee('default_monthly_income')
             ->assertDontSeeText('Default monthly income')
             ->assertDontSee($user->password)->assertDontSee($user->remember_token)
-            ->assertDontSeeText('Expenses')->assertDontSeeText('Goal contributions');
+            ->assertDontSeeText('Private recurring obligation')->assertDontSee('54321.98')
+            ->assertDontSeeText('Goal contributions');
     }
 }
