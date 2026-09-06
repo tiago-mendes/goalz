@@ -73,11 +73,24 @@ new #[Title('Manage category')] class extends Component {
     <flux:heading size="xl" level="1">{{ $categoryId ? 'Edit category' : 'Create category' }}</flux:heading>
     <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="name" label="Name" maxlength="100" required autocomplete="off" />
-        <flux:select wire:model="icon" label="Icon">
-            @foreach (ExpenseCategory::ICONS as $value => $label)
-                <flux:select.option :value="$value" wire:key="icon-{{ $value }}">{{ $label }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <flux:fieldset>
+            <flux:legend>Icon</flux:legend>
+            <div class="grid grid-cols-[repeat(auto-fit,2.5rem)] gap-2">
+                @foreach (ExpenseCategory::ICONS as $value => $label)
+                    <flux:button
+                        type="button"
+                        :icon="$value"
+                        :variant="$icon === $value ? 'primary' : 'outline'"
+                        :aria-label="$label"
+                        :title="$label"
+                        :aria-pressed="$icon === $value ? 'true' : 'false'"
+                        wire:click="$set('icon', '{{ $value }}')"
+                        wire:key="icon-{{ $value }}"
+                    />
+                @endforeach
+            </div>
+            <flux:error name="icon" />
+        </flux:fieldset>
         <flux:input wire:model="color" label="Color" type="color" required />
         <flux:checkbox wire:model="is_active" label="Active category" />
         <flux:text>Inactive categories stay here so you can activate them again later.</flux:text>

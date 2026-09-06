@@ -19,6 +19,13 @@ class ExpenseCategory extends Model
         'shopping-cart' => 'Food', 'truck' => 'Transport', 'home' => 'Housing',
         'heart' => 'Health', 'puzzle-piece' => 'Leisure', 'academic-cap' => 'Education',
         'arrow-path' => 'Subscriptions', 'tag' => 'Other',
+        'shopping-bag' => 'Shopping', 'cake' => 'Celebrations', 'map-pin' => 'Destinations',
+        'building-office' => 'Office', 'wrench-screwdriver' => 'Maintenance', 'bolt' => 'Electricity',
+        'wifi' => 'Internet', 'phone' => 'Phone', 'book-open' => 'Books',
+        'film' => 'Movies', 'musical-note' => 'Music', 'ticket' => 'Events',
+        'paper-airplane' => 'Travel', 'credit-card' => 'Card payments', 'banknotes' => 'Cash',
+        'receipt-percent' => 'Bills', 'briefcase' => 'Work', 'gift' => 'Gifts',
+        'users' => 'Family', 'shield-check' => 'Insurance', 'sparkles' => 'Personal care',
     ];
 
     public const string DEFAULT_ICON = 'tag';
