@@ -60,6 +60,12 @@ class User extends Authenticatable
         return $this->hasMany(ExpenseCategory::class);
     }
 
+    /** @return HasMany<MonthlyIncome, $this> */
+    public function monthlyIncomes(): HasMany
+    {
+        return $this->hasMany(MonthlyIncome::class);
+    }
+
     /**
      * Get the user's initials
      */

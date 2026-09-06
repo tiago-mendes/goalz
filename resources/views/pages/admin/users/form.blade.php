@@ -25,7 +25,6 @@ new #[Title('Manage user')] class extends Component {
     public string $role = 'user';
     public $is_active = true;
     public string $currency = 'BRL';
-    public ?string $default_monthly_income = null;
 
     public function boot(): void
     {
@@ -35,14 +34,13 @@ new #[Title('Manage user')] class extends Component {
     public function mount(?User $user = null): void
     {
         if ($user?->exists) {
-            $user = User::select(['id', 'name', 'email', 'role', 'is_active', 'currency', 'default_monthly_income'])->findOrFail($user->id);
+            $user = User::select(['id', 'name', 'email', 'role', 'is_active', 'currency'])->findOrFail($user->id);
             $this->userId = $user->id;
             $this->name = $user->name;
             $this->email = $user->email;
             $this->role = $user->role->value;
             $this->is_active = $user->is_active;
             $this->currency = $user->currency;
-            $this->default_monthly_income = $user->default_monthly_income;
         }
     }
 
@@ -55,7 +53,6 @@ new #[Title('Manage user')] class extends Component {
             'role' => ['required', Rule::enum(UserRole::class)],
             'is_active' => ['required', 'boolean'],
             'currency' => ['required', 'string', 'regex:/\A[A-Z]{3}\z/'],
-            'default_monthly_income' => ['nullable', 'string', 'regex:/\A(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?\z/'],
             ...($this->userId === null ? ['password' => $this->passwordRules()] : []),
         ]);
 
@@ -88,7 +85,6 @@ new #[Title('Manage user')] class extends Component {
             $user->role = UserRole::from($validated['role']);
             $user->is_active = $validated['is_active'];
             $user->currency = $validated['currency'];
-            $user->default_monthly_income = $validated['default_monthly_income'] === '' ? null : $validated['default_monthly_income'];
             if (! $user->exists) {
                 $user->password = $validated['password'];
             }
@@ -123,7 +119,6 @@ new #[Title('Manage user')] class extends Component {
             <flux:text>Your own account must remain active and retain the admin role.</flux:text>
         @endif
         <flux:input wire:model="currency" label="Currency" placeholder="BRL" maxlength="3" required />
-        <flux:input wire:model="default_monthly_income" label="Default monthly income (optional)" placeholder="0.00" inputmode="decimal" />
         <flux:modal.trigger name="confirm-save">
             <flux:button variant="primary">{{ $userId ? 'Review changes' : 'Create user' }}</flux:button>
         </flux:modal.trigger>

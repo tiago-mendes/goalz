@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::livewire('monthly-income', 'pages::monthly-income.index')->name('monthly-income.index');
     Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::livewire('expense-categories', 'pages::expense-categories.index')->name('expense-categories.index');
     Route::livewire('expense-categories/create', 'pages::expense-categories.form')->name('expense-categories.create');
