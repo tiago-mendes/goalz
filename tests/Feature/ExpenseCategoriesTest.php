@@ -8,6 +8,7 @@ use App\Models\User;
 use App\UserRole;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
@@ -46,15 +47,41 @@ class ExpenseCategoriesTest extends TestCase
 
     public function test_backfill_provisions_existing_users_and_is_idempotent_without_overwriting_categories(): void
     {
+        $this->freezeSecond();
         $user = User::factory()->create();
+        User::factory()->count(199)->create();
         $other = User::factory()->create(['is_active' => false]);
-        $food = ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Food', 'color' => '#123456']);
+        $food = ExpenseCategory::factory()->for($user)->inactive()->create([
+            'name' => 'Food', 'icon' => 'tag', 'color' => '#123456',
+            'created_at' => now()->subYear(), 'updated_at' => now()->subDay(),
+        ]);
+        $originalFood = $food->refresh()->getRawOriginal();
+        $timestamp = now()->toDateTimeString();
         $migration = require database_path('migrations/2026_09_06_062556_provision_existing_users_expense_categories.php');
 
         $migration->up();
+        $this->travel(1)->day();
         $migration->up();
         app(ProvisionExpenseCategories::class)->handle($user);
 
+        $this->assertSame(201, DB::table('expense_categories')->distinct()->count('user_id'));
+        $this->assertSame(1608, DB::table('expense_categories')->count());
+        $this->assertSame($originalFood, $food->refresh()->getRawOriginal());
+        foreach ([
+            ['Food', 'shopping-cart', '#F97316'],
+            ['Transport', 'truck', '#3B82F6'],
+            ['Housing', 'home', '#8B5CF6'],
+            ['Health', 'heart', '#EF4444'],
+            ['Leisure', 'puzzle-piece', '#EC4899'],
+            ['Education', 'academic-cap', '#14B8A6'],
+            ['Subscriptions', 'arrow-path', '#EAB308'],
+            ['Other', 'tag', '#64748B'],
+        ] as [$name, $icon, $color]) {
+            $this->assertDatabaseHas('expense_categories', [
+                'user_id' => $other->id, 'name' => $name, 'icon' => $icon, 'color' => $color,
+                'is_active' => true, 'created_at' => $timestamp, 'updated_at' => $timestamp,
+            ]);
+        }
         $this->assertEqualsCanonicalizing(['Food', 'Transport', 'Housing', 'Health', 'Leisure', 'Education', 'Subscriptions', 'Other'], $user->expenseCategories()->pluck('name')->all());
         $this->assertSame(8, $other->expenseCategories()->count());
         $this->assertFalse($food->refresh()->is_active);
@@ -62,6 +89,7 @@ class ExpenseCategoriesTest extends TestCase
         $this->assertTrue($other->expenseCategories()->where('name', 'Food')->sole()->is_active);
         $migration->down();
         $this->assertSame(8, $user->expenseCategories()->count());
+        $this->assertSame(1608, DB::table('expense_categories')->count());
     }
 
     public function test_user_can_create_trimmed_category_with_safe_defaults(): void
