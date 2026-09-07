@@ -607,6 +607,26 @@ class ExpensesTest extends TestCase
         $page->set('returnMonth', '2026-13');
     }
 
+    #[TestWith([false, 'heart', '#ABCDEF', '#ABCDEF'])]
+    #[TestWith([true, 'heart', '#ABCDEF', '#ABCDEF'])]
+    #[TestWith([false, '../bad-icon', 'invalid', '#64748B'])]
+    #[TestWith([true, '../bad-icon', 'invalid', '#64748B'])]
+    public function test_category_icons_render_safely_in_normal_and_deleted_lists(bool $deleted, string $icon, string $color, string $expectedColor): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 7));
+        $category = ExpenseCategory::factory()->create(['name' => 'Health', 'icon' => $icon, 'color' => $color]);
+        Expense::factory()->for($category->user)->for($category)->create(['deleted_by_user_at' => $deleted ? now() : null]);
+        $this->actingAs($category->user);
+
+        $page = Livewire::test('pages::expenses.index')->set('showDeleted', $deleted)
+            ->assertSee('Health')->assertSee('color: '.$expectedColor, false)->assertDontSee('../bad-icon');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//tbody/tr/td[2]//svg[@data-flux-icon]')->length);
+    }
+
     /** @param array<string, mixed> $overrides
      * @return array<string, mixed>
      */
