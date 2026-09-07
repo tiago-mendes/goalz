@@ -85,7 +85,7 @@ class FixedExpensesMariaDbTest extends TestCase
         FixedExpense::factory()->for($user)->for($category)->create(['amount' => '0.03']);
         $this->actingAs($user);
 
-        Livewire::test('pages::dashboard')->assertSet('plannedTotal', '20000000000000.01')
+        Livewire::test('pages::dashboard')->assertSet('actualTotal', '20000000000000.01')
             ->assertSet('remaining', '-10000000000000.02')->assertSee('9999999999999.99');
 
         $this->assertSame('9999999999999.99', $user->monthlyIncomes()->sole()->amount);
