@@ -19,6 +19,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('accounts', 'pages::accounts.index')->name('accounts.index');
     Route::livewire('accounts/create', 'pages::accounts.form')->name('accounts.create');
     Route::livewire('accounts/{accountId}/edit', 'pages::accounts.form')->whereNumber('accountId')->name('accounts.edit');
+    Route::livewire('credit-cards', 'pages::credit-cards.index')->name('credit-cards.index');
+    Route::livewire('credit-cards/create', 'pages::credit-cards.form')->name('credit-cards.create');
+    Route::livewire('credit-cards/{creditCardId}', 'pages::credit-cards.show')->whereNumber('creditCardId')->name('credit-cards.show');
+    Route::livewire('credit-cards/{creditCardId}/edit', 'pages::credit-cards.form')->whereNumber('creditCardId')->name('credit-cards.edit');
     Route::livewire('goals', 'pages::goals.index')->name('goals.index');
     Route::livewire('goals/create', 'pages::goals.form')->name('goals.create');
     Route::livewire('goals/{goalId}/edit', 'pages::goals.form')->whereNumber('goalId')->name('goals.edit');

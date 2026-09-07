@@ -16,6 +16,8 @@ class FixedExpenseFactory extends Factory
         return [
             'user_id' => User::factory(),
             'expense_category_id' => fn (array $attributes): int => ExpenseCategory::factory()->create(['user_id' => $attributes['user_id']])->id,
+            'payment_account_id' => null,
+            'credit_card_id' => null,
             'name' => fake()->words(2, true),
             'amount' => (string) fake()->numberBetween(1, 10000).'.00',
             'day_of_month' => fake()->numberBetween(1, 31),

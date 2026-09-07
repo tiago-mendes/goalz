@@ -23,6 +23,7 @@ new class extends Component {
         $user = Auth::user();
         DB::transaction(function () use ($user): void {
             $user->expenses()->delete();
+            $user->fixedExpenses()->delete();
             $user->delete();
         });
 

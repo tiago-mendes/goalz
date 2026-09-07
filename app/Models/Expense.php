@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['name', 'expense_category_id', 'amount', 'expense_date', 'description'])]
+#[Fillable(['name', 'expense_category_id', 'payment_account_id', 'credit_card_id', 'amount', 'expense_date', 'description'])]
 class Expense extends Model
 {
     /** @use HasFactory<ExpenseFactory> */
@@ -40,6 +40,32 @@ class Expense extends Model
     public function fixedExpense(): BelongsTo
     {
         return $this->belongsTo(FixedExpense::class);
+    }
+
+    /** @return BelongsTo<Account, $this> */
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'payment_account_id');
+    }
+
+    /** @return BelongsTo<CreditCard, $this> */
+    public function creditCard(): BelongsTo
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
+    public function paymentSourceName(): string
+    {
+        /** @var Account|null $paymentAccount */
+        $paymentAccount = $this->getRelationValue('paymentAccount');
+        /** @var CreditCard|null $creditCard */
+        $creditCard = $this->getRelationValue('creditCard');
+
+        if ($paymentAccount instanceof Account) {
+            return $paymentAccount->name;
+        }
+
+        return $creditCard instanceof CreditCard ? $creditCard->name : 'Not specified';
     }
 
     /** @param Builder<Expense> $query */
