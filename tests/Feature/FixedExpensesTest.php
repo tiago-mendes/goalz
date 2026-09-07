@@ -337,6 +337,34 @@ class FixedExpensesTest extends TestCase
         $this->assertCount(1, $page->instance()->fixedExpenses->items());
     }
 
+    #[TestWith(['heart', '#ABCDEF', '#ABCDEF'])]
+    #[TestWith(['../bad-icon', 'invalid', '#64748B'])]
+    public function test_category_icon_and_color_render_safely(string $icon, string $color, string $expectedColor): void
+    {
+        $category = ExpenseCategory::factory()->create(['name' => 'Health', 'icon' => $icon, 'color' => $color]);
+        FixedExpense::factory()->for($category->user)->for($category)->create();
+        $this->actingAs($category->user);
+
+        $page = Livewire::test('pages::fixed-expenses.index')->assertSee('Health')
+            ->assertSee('color: '.$expectedColor, false)->assertDontSee('../bad-icon');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//tbody/tr/td[2]//svg[@data-flux-icon]')->length);
+    }
+
+    public function test_unavailable_category_keeps_fallback_without_exposing_foreign_visuals(): void
+    {
+        $expense = FixedExpense::factory()->create();
+        $category = ExpenseCategory::factory()->create(['name' => 'Private category', 'color' => '#ABCDEF']);
+        $expense->update(['expense_category_id' => $category->id]);
+        $this->actingAs($expense->user);
+
+        Livewire::test('pages::fixed-expenses.index')->assertSee('Category unavailable')
+            ->assertDontSee('Private category')->assertDontSee('color: #ABCDEF', false);
+    }
+
     /** @return array{name: string, expense_category_id: int, amount: string, day_of_month: int, start_date: string, is_active: bool} */
     private function fields(ExpenseCategory $category): array
     {
