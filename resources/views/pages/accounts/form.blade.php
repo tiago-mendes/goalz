@@ -2,8 +2,10 @@
 
 use App\AccountType;
 use App\Models\Account;
+use App\Models\AccountBalanceSnapshot;
 use Brick\Math\BigDecimal;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -53,20 +55,30 @@ new #[Title('Manage account')] class extends Component {
             'current_balance.regex' => 'Enter a balance from 0.00 up to 9999999999999.99 using at most two decimal places.',
         ]);
 
-        if ($account->exists) {
-            $balanceChanged = ! BigDecimal::of($account->current_balance)->isEqualTo(BigDecimal::of($validated['current_balance']));
-            $account->fill($validated);
-            if ($balanceChanged) {
-                $account->balance_updated_at = now();
-            }
-        } else {
-            $account->fill($validated);
-            $account->is_active = true;
-            $account->balance_updated_at = now();
-        }
-
         try {
-            $account->save();
+            DB::transaction(function () use ($account, $validated): void {
+                $balanceChanged = ! $account->exists
+                    || ! BigDecimal::of($account->current_balance)->isEqualTo(BigDecimal::of($validated['current_balance']));
+
+                $account->fill($validated);
+
+                if (! $account->exists) {
+                    $account->is_active = true;
+                }
+
+                if ($balanceChanged) {
+                    $account->balance_updated_at = now();
+                }
+
+                $account->save();
+
+                if ($balanceChanged) {
+                    $snapshot = new AccountBalanceSnapshot;
+                    $snapshot->balance = $account->current_balance;
+                    $snapshot->recorded_at = $account->balance_updated_at;
+                    $account->balanceSnapshots()->save($snapshot);
+                }
+            });
         } catch (UniqueConstraintViolationException) {
             throw ValidationException::withMessages(['name' => 'The name has already been taken.']);
         }
