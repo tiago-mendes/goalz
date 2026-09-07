@@ -158,13 +158,13 @@ class GoalsTest extends TestCase
             ->assertSet('totalTarget', '9999999999.99');
     }
 
-    public function test_empty_summary_is_zero_and_page_has_no_progress_or_delete_controls(): void
+    public function test_empty_summary_is_zero_and_page_has_no_delete_controls(): void
     {
         $this->actingAs($user = User::factory()->create(['currency' => 'BRL']));
 
         $this->get(route('goals.index'))->assertSeeText('Active Goals')->assertSeeText('Total Target')
             ->assertSeeText('BRL 0.00')->assertSeeText('No goals yet. Create your first goal to start planning what comes next.')
-            ->assertDontSeeText('Progress')->assertDontSeeText('Delete');
+            ->assertDontSeeText('Delete');
         Livewire::test('pages::goals.index')->assertSet('activeGoals', 0)->assertSet('totalTarget', '0.00');
     }
 

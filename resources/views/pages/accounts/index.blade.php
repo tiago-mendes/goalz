@@ -19,6 +19,7 @@ new #[Title('Accounts')] class extends Component {
     public function accounts(): Collection
     {
         return auth()->user()->accounts()
+            ->with('goalAccountAllocations')
             ->orderByDesc('is_active')
             ->orderBy('name')
             ->orderBy('id')
@@ -67,7 +68,7 @@ new #[Title('Accounts')] class extends Component {
             <caption class="sr-only">Your accounts</caption>
             <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
                 <th scope="col" class="px-4 py-3">Name</th><th scope="col" class="px-4 py-3">Type</th>
-                <th scope="col" class="px-4 py-3">Current Balance</th><th scope="col" class="px-4 py-3">Balance Updated</th>
+                <th scope="col" class="px-4 py-3">Funds</th><th scope="col" class="px-4 py-3">Balance Updated</th>
                 <th scope="col" class="px-4 py-3">Status</th><th scope="col" class="px-4 py-3">Actions</th>
             </tr></thead>
             <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -75,7 +76,17 @@ new #[Title('Accounts')] class extends Component {
                     <tr wire:key="account-{{ $account->id }}">
                         <td class="px-4 py-3">{{ $account->name }}</td>
                         <td class="px-4 py-3">{{ $account->type->label() }}</td>
-                        <td class="px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $account->current_balance }}</td>
+                        <td class="px-4 py-3">
+                            <dl class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 tabular-nums">
+                                <dt>Current Balance</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->current_balance }}</dd>
+                                <dt>Allocated</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->allocatedAmount() }}</dd>
+                                @if (BigDecimal::of($account->availableAmount())->isNegative())
+                                    <dt class="font-medium text-red-600 dark:text-red-400">Overallocated</dt><dd class="text-right font-medium text-red-600 dark:text-red-400">{{ auth()->user()->currency }} {{ $account->overallocatedAmount() }}</dd>
+                                @else
+                                    <dt>Available</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->availableAmount() }}</dd>
+                                @endif
+                            </dl>
+                        </td>
                         <td class="px-4 py-3">{{ $account->balance_updated_at->format('Y-m-d H:i') }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$account->is_active ? 'green' : 'zinc'">{{ $account->is_active ? 'Active' : 'Inactive' }}</flux:badge></td>
                         <td class="px-4 py-3"><div class="flex flex-wrap gap-2">

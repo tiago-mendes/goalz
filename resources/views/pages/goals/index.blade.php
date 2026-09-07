@@ -21,6 +21,7 @@ new #[Title('Goals')] class extends Component {
     public function goals(): Collection
     {
         return auth()->user()->goals()
+            ->with('goalAccountAllocations')
             ->orderByRaw("CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
             ->orderByRaw('target_date IS NULL')
             ->orderBy('target_date')
@@ -83,17 +84,32 @@ new #[Title('Goals')] class extends Component {
         <table class="w-full text-left text-sm">
             <caption class="sr-only">Your goals</caption>
             <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
-                <th scope="col" class="px-4 py-3">Name</th><th scope="col" class="px-4 py-3">Target Amount</th>
+                <th scope="col" class="px-4 py-3">Name</th><th scope="col" class="px-4 py-3">Funding progress</th>
                 <th scope="col" class="px-4 py-3">Target Date</th><th scope="col" class="px-4 py-3">Status</th><th scope="col" class="px-4 py-3">Actions</th>
             </tr></thead>
             <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                 @forelse ($this->goals as $goal)
                     <tr wire:key="goal-{{ $goal->id }}">
                         <td class="px-4 py-3">{{ $goal->name }}</td>
-                        <td class="px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $goal->target_amount }}</td>
+                        <td class="min-w-64 px-4 py-3">
+                            <dl class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 tabular-nums">
+                                <dt>Target</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $goal->target_amount }}</dd>
+                                <dt>Allocated</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $goal->allocatedAmount() }}</dd>
+                                @if (BigDecimal::of($goal->remainingAmount())->isNegative())
+                                    <dt class="font-medium text-green-700 dark:text-green-400">Overfunded</dt><dd class="text-right font-medium text-green-700 dark:text-green-400">{{ auth()->user()->currency }} {{ $goal->overfundedAmount() }}</dd>
+                                @else
+                                    <dt>Remaining</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $goal->remainingAmount() }}</dd>
+                                @endif
+                                <dt>Progress</dt><dd class="text-right">{{ $goal->progressPercentage() }}%</dd>
+                            </dl>
+                            <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100">
+                                <div class="h-full rounded-full bg-green-600" style="width: {{ $goal->visualProgressPercentage() }}%"></div>
+                            </div>
+                        </td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $goal->target_date?->format('M j, Y') ?? '—' }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$goal->status === GoalStatus::Active ? 'green' : ($goal->status === GoalStatus::Paused ? 'yellow' : 'zinc')">{{ $goal->status->label() }}</flux:badge></td>
                         <td class="px-4 py-3"><div class="flex flex-wrap gap-2">
+                            <flux:button size="sm" :href="route('goals.allocations', $goal->id)" :aria-label="'Manage allocations for '.$goal->name" wire:navigate>Manage allocations</flux:button>
                             <flux:button size="sm" :href="route('goals.edit', $goal->id)" :aria-label="'Edit '.$goal->name" wire:navigate>Edit</flux:button>
                             <flux:dropdown>
                                 <flux:button size="sm">Change status</flux:button>
