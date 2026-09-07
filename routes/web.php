@@ -16,6 +16,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('expense-categories', 'pages::expense-categories.index')->name('expense-categories.index');
     Route::livewire('expense-categories/create', 'pages::expense-categories.form')->name('expense-categories.create');
     Route::livewire('expense-categories/{categoryId}/edit', 'pages::expense-categories.form')->whereNumber('categoryId')->name('expense-categories.edit');
+    Route::livewire('accounts', 'pages::accounts.index')->name('accounts.index');
+    Route::livewire('accounts/create', 'pages::accounts.form')->name('accounts.create');
+    Route::livewire('accounts/{accountId}/edit', 'pages::accounts.form')->whereNumber('accountId')->name('accounts.edit');
 });
 
 Route::middleware(['auth', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {
