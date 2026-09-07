@@ -22,6 +22,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('goals', 'pages::goals.index')->name('goals.index');
     Route::livewire('goals/create', 'pages::goals.form')->name('goals.create');
     Route::livewire('goals/{goalId}/edit', 'pages::goals.form')->whereNumber('goalId')->name('goals.edit');
+    Route::livewire('goals/{goalId}/allocations', 'pages::goals.allocations')->whereNumber('goalId')->name('goals.allocations');
 });
 
 Route::middleware(['auth', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {
