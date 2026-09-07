@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\FixedExpense;
+use App\PaymentSourceSelection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -19,6 +20,7 @@ new #[Title('Manage fixed expense')] class extends Component {
     public $day_of_month = '';
     public string $start_date = '';
     public $is_active = true;
+    public $payment_source = '';
 
     public function boot(): void
     {
@@ -38,6 +40,7 @@ new #[Title('Manage fixed expense')] class extends Component {
             $this->day_of_month = $expense->day_of_month;
             $this->start_date = $expense->start_date->toDateString();
             $this->is_active = $expense->is_active;
+            $this->payment_source = PaymentSourceSelection::fromIds($expense->payment_account_id, $expense->credit_card_id);
         }
     }
 
@@ -55,6 +58,32 @@ new #[Title('Manage fixed expense')] class extends Component {
             })->orderBy('name')->orderBy('id')->get();
     }
 
+    #[Computed]
+    public function paymentAccounts(): Collection
+    {
+        $currentAccountId = $this->fixedExpenseId === null ? null : $this->ownedExpense()->payment_account_id;
+
+        return auth()->user()->accounts()->where(function (Builder $query) use ($currentAccountId): void {
+            $query->where('is_active', true);
+            if ($currentAccountId !== null) {
+                $query->orWhere('id', $currentAccountId);
+            }
+        })->orderBy('name')->orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function paymentCreditCards(): Collection
+    {
+        $currentCreditCardId = $this->fixedExpenseId === null ? null : $this->ownedExpense()->credit_card_id;
+
+        return auth()->user()->creditCards()->where(function (Builder $query) use ($currentCreditCardId): void {
+            $query->where('is_active', true);
+            if ($currentCreditCardId !== null) {
+                $query->orWhere('id', $currentCreditCardId);
+            }
+        })->orderBy('name')->orderBy('id')->get();
+    }
+
     public function save(): void
     {
         $expense = $this->fixedExpenseId === null ? auth()->user()->fixedExpenses()->make() : $this->ownedExpense();
@@ -69,6 +98,7 @@ new #[Title('Manage fixed expense')] class extends Component {
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'expense_category_id' => ['required', 'integer', $categoryRule],
+            'payment_source' => ['nullable', 'string', 'max:50'],
             'amount' => ['required', 'string', 'regex:/\A(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?\z/', 'not_in:0,0.0,0.00'],
             'day_of_month' => ['required', 'integer', 'between:1,31'],
             'start_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:1000-01-01', 'before_or_equal:9999-12-31'],
@@ -79,6 +109,13 @@ new #[Title('Manage fixed expense')] class extends Component {
             'amount.not_in' => 'The amount must be greater than zero.',
         ]);
 
+        unset($validated['payment_source']);
+        $validated += PaymentSourceSelection::resolve(
+            auth()->user(),
+            $this->payment_source,
+            $expense->payment_account_id,
+            $expense->credit_card_id,
+        );
         $expense->fill($validated)->save();
         session()->flash('status', 'Fixed expense saved.');
         $this->redirectRoute('fixed-expenses.index', navigate: true);
@@ -108,6 +145,15 @@ new #[Title('Manage fixed expense')] class extends Component {
             @endforeach
         </flux:select>
         <flux:input wire:model="amount" :label="'Amount ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.01" required />
+        <flux:select wire:model="payment_source" label="Payment source">
+            <flux:select.option value="">Not specified</flux:select.option>
+            @foreach ($this->paymentAccounts as $account)
+                <flux:select.option value="account:{{ $account->id }}" wire:key="fixed-payment-account-{{ $account->id }}">Account — {{ $account->name }}{{ $account->is_active ? '' : ' (Inactive — current source)' }}</flux:select.option>
+            @endforeach
+            @foreach ($this->paymentCreditCards as $creditCard)
+                <flux:select.option value="credit-card:{{ $creditCard->id }}" wire:key="fixed-payment-credit-card-{{ $creditCard->id }}">Credit card — {{ $creditCard->name }}{{ $creditCard->is_active ? '' : ' (Inactive — current source)' }}</flux:select.option>
+            @endforeach
+        </flux:select>
         <flux:input wire:model="day_of_month" label="Day of month" type="number" min="1" max="31" step="1" required />
         <flux:text>For shorter months, the expected day is the last calendar day of that month.</flux:text>
         <flux:input wire:model="start_date" label="Start date" type="date" min="1000-01-01" max="9999-12-31" required />

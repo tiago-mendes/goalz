@@ -36,6 +36,8 @@ class MaterializeFixedExpensesForMonth
                 DB::transaction(function () use ($user, $template, $identity, $date): void {
                     $expense = $user->expenses()->make([
                         'expense_category_id' => $template->expense_category_id,
+                        'payment_account_id' => $template->payment_account_id,
+                        'credit_card_id' => $template->credit_card_id,
                         'name' => $template->name, 'amount' => $template->amount,
                         'expense_date' => $date->toDateString(), 'description' => null,
                     ]);

@@ -21,7 +21,11 @@ new #[Title('Fixed Expenses')] class extends Component {
     public function fixedExpenses(): LengthAwarePaginator
     {
         return auth()->user()->fixedExpenses()
-            ->with(['expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id())])
+            ->with([
+                'expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+                'paymentAccount' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+                'creditCard' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+            ])
             ->orderBy('name')->orderBy('id')->paginate(20);
     }
 
@@ -55,6 +59,7 @@ new #[Title('Fixed Expenses')] class extends Component {
                     <th scope="col" class="px-4 py-3">Amount</th>
                     <th scope="col" class="px-4 py-3">Day</th>
                     <th scope="col" class="px-4 py-3">Start date</th>
+                    <th scope="col" class="px-4 py-3">Payment Source</th>
                     <th scope="col" class="px-4 py-3">Status</th>
                     <th scope="col" class="px-4 py-3">Actions</th>
                 </tr>
@@ -76,6 +81,7 @@ new #[Title('Fixed Expenses')] class extends Component {
                         <td class="whitespace-nowrap px-4 py-3">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
                         <td class="px-4 py-3">{{ $expense->day_of_month }}</td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $expense->start_date->toDateString() }}</td>
+                        <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$expense->is_active ? 'green' : 'zinc'">{{ $expense->is_active ? 'Active' : 'Inactive' }}</flux:badge></td>
                         <td class="px-4 py-3">
                             <div class="flex gap-2">
@@ -85,7 +91,7 @@ new #[Title('Fixed Expenses')] class extends Component {
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-6"><flux:text>No fixed expenses yet. Create your first recurring definition to get started.</flux:text></td></tr>
+                    <tr><td colspan="8" class="px-4 py-6"><flux:text>No fixed expenses yet. Create your first recurring definition to get started.</flux:text></td></tr>
                 @endforelse
             </tbody>
         </table>

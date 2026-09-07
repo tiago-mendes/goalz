@@ -20,6 +20,7 @@
                     <flux:sidebar.item icon="calendar-days" :href="route('fixed-expenses.index')" :current="request()->routeIs('fixed-expenses.*')" wire:navigate>Fixed Expenses</flux:sidebar.item>
                     <flux:sidebar.item icon="banknotes" :href="route('expenses.index')" :current="request()->routeIs('expenses.*')" wire:navigate>Expenses</flux:sidebar.item>
                     <flux:sidebar.item icon="building-library" :href="route('accounts.index')" :current="request()->routeIs('accounts.*')" wire:navigate>Accounts</flux:sidebar.item>
+                    <flux:sidebar.item icon="credit-card" :href="route('credit-cards.index')" :current="request()->routeIs('credit-cards.*')" wire:navigate>Credit Cards</flux:sidebar.item>
                     <flux:sidebar.item icon="flag" :href="route('goals.index')" :current="request()->routeIs('goals.*')" wire:navigate>Goals</flux:sidebar.item>
                     @can('manage-users')
                         <flux:sidebar.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.*')" wire:navigate>Manage Users</flux:sidebar.item>

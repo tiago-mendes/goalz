@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * final calendar day when day_of_month exceeds that month's length, and must
  * respect start_date and is_active.
  */
-#[Fillable(['expense_category_id', 'name', 'amount', 'day_of_month', 'start_date', 'is_active'])]
+#[Fillable(['expense_category_id', 'payment_account_id', 'credit_card_id', 'name', 'amount', 'day_of_month', 'start_date', 'is_active'])]
 class FixedExpense extends Model
 {
     /** @use HasFactory<FixedExpenseFactory> */
@@ -45,6 +45,32 @@ class FixedExpense extends Model
     public function expenseCategory(): BelongsTo
     {
         return $this->belongsTo(ExpenseCategory::class);
+    }
+
+    /** @return BelongsTo<Account, $this> */
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'payment_account_id');
+    }
+
+    /** @return BelongsTo<CreditCard, $this> */
+    public function creditCard(): BelongsTo
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
+    public function paymentSourceName(): string
+    {
+        /** @var Account|null $paymentAccount */
+        $paymentAccount = $this->getRelationValue('paymentAccount');
+        /** @var CreditCard|null $creditCard */
+        $creditCard = $this->getRelationValue('creditCard');
+
+        if ($paymentAccount instanceof Account) {
+            return $paymentAccount->name;
+        }
+
+        return $creditCard instanceof CreditCard ? $creditCard->name : 'Not specified';
     }
 
     /** @return HasMany<Expense, $this> */

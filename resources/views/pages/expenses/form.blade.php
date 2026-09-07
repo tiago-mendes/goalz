@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Expense;
+use App\PaymentSourceSelection;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,6 +31,7 @@ new #[Title('Manage expense')] class extends Component {
     public string $amount = '';
     public string $expense_date = '';
     public ?string $description = null;
+    public $payment_source = '';
 
     public function boot(): void
     {
@@ -53,6 +55,7 @@ new #[Title('Manage expense')] class extends Component {
             $this->amount = $expense->amount;
             $this->expense_date = $expense->expense_date->toDateString();
             $this->description = $expense->description;
+            $this->payment_source = PaymentSourceSelection::fromIds($expense->payment_account_id, $expense->credit_card_id);
         }
     }
 
@@ -65,6 +68,32 @@ new #[Title('Manage expense')] class extends Component {
             $query->where('is_active', true);
             if ($currentCategoryId !== null) {
                 $query->orWhere('id', $currentCategoryId);
+            }
+        })->orderBy('name')->orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function paymentAccounts(): Collection
+    {
+        $currentAccountId = $this->expenseId === null ? null : $this->ownedExpense()->payment_account_id;
+
+        return auth()->user()->accounts()->where(function (Builder $query) use ($currentAccountId): void {
+            $query->where('is_active', true);
+            if ($currentAccountId !== null) {
+                $query->orWhere('id', $currentAccountId);
+            }
+        })->orderBy('name')->orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function paymentCreditCards(): Collection
+    {
+        $currentCreditCardId = $this->expenseId === null ? null : $this->ownedExpense()->credit_card_id;
+
+        return auth()->user()->creditCards()->where(function (Builder $query) use ($currentCreditCardId): void {
+            $query->where('is_active', true);
+            if ($currentCreditCardId !== null) {
+                $query->orWhere('id', $currentCreditCardId);
             }
         })->orderBy('name')->orderBy('id')->get();
     }
@@ -117,7 +146,7 @@ new #[Title('Manage expense')] class extends Component {
         $this->showDuplicate = false;
     }
 
-    /** @return array{name: string, expense_category_id: int, amount: string, expense_date: string, description: ?string} */
+    /** @return array{name: string, expense_category_id: int, payment_account_id: ?int, credit_card_id: ?int, amount: string, expense_date: string, description: ?string} */
     private function validatedFields(?Expense $expense = null): array
     {
         Gate::authorize($expense === null ? 'create' : 'update', $expense ?? Expense::class);
@@ -137,6 +166,7 @@ new #[Title('Manage expense')] class extends Component {
         $data = $this->validate([
             'name' => ['required', 'string', 'max:100'],
             'expense_category_id' => ['required', 'integer', $categoryRule],
+            'payment_source' => ['nullable', 'string', 'max:50'],
             'amount' => ['required', 'string', 'regex:/\A(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?\z/', 'not_in:0,0.0,0.00'],
             'expense_date' => $dateRules,
             'description' => ['nullable', 'string', 'max:10000'],
@@ -148,21 +178,30 @@ new #[Title('Manage expense')] class extends Component {
         ]);
         $data['expense_category_id'] = (int) $data['expense_category_id'];
         $data['amount'] = (string) BigDecimal::of($data['amount'])->toScale(2);
+        unset($data['payment_source']);
+        $data += PaymentSourceSelection::resolve(
+            auth()->user(),
+            $this->payment_source,
+            $expense?->payment_account_id,
+            $expense?->credit_card_id,
+        );
 
         return $data;
     }
 
-    /** @param array{name: string, expense_category_id: int, amount: string, expense_date: string, description: ?string} $data */
+    /** @param array{name: string, expense_category_id: int, payment_account_id: ?int, credit_card_id: ?int, amount: string, expense_date: string, description: ?string} $data */
     private function matches(Expense $expense, array $data): bool
     {
         return trim($expense->name) === $data['name']
             && $expense->expense_category_id === $data['expense_category_id']
+            && $expense->payment_account_id === $data['payment_account_id']
+            && $expense->credit_card_id === $data['credit_card_id']
             && $expense->amount === $data['amount']
             && $expense->expense_date->toDateString() === $data['expense_date']
             && trim($expense->description ?? '') === ($data['description'] ?? '');
     }
 
-    /** @param array{name: string, expense_category_id: int, amount: string, expense_date: string, description: ?string} $data */
+    /** @param array{name: string, expense_category_id: int, payment_account_id: ?int, credit_card_id: ?int, amount: string, expense_date: string, description: ?string} $data */
     private function checkedCandidate(array $data): Expense
     {
         abort_if($this->expenseId !== null || $this->duplicateId === null, 404);
@@ -176,7 +215,7 @@ new #[Title('Manage expense')] class extends Component {
         return $candidate;
     }
 
-    /** @param array{name: string, expense_category_id: int, amount: string, expense_date: string, description: ?string} $data */
+    /** @param array{name: string, expense_category_id: int, payment_account_id: ?int, credit_card_id: ?int, amount: string, expense_date: string, description: ?string} $data */
     private function createManual(array $data): void
     {
         $expense = auth()->user()->expenses()->make($data);
@@ -220,6 +259,15 @@ new #[Title('Manage expense')] class extends Component {
         </flux:select>
         <flux:input wire:model="amount" :label="'Amount ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.01" required />
         <flux:input wire:model="expense_date" label="Expense date" type="date" min="1000-01-01" max="9999-12-31" required />
+        <flux:select wire:model="payment_source" label="Payment source">
+            <flux:select.option value="">Not specified</flux:select.option>
+            @foreach ($this->paymentAccounts as $account)
+                <flux:select.option value="account:{{ $account->id }}" wire:key="payment-account-{{ $account->id }}">Account — {{ $account->name }}{{ $account->is_active ? '' : ' (Inactive — current source)' }}</flux:select.option>
+            @endforeach
+            @foreach ($this->paymentCreditCards as $creditCard)
+                <flux:select.option value="credit-card:{{ $creditCard->id }}" wire:key="payment-credit-card-{{ $creditCard->id }}">Credit card — {{ $creditCard->name }}{{ $creditCard->is_active ? '' : ' (Inactive — current source)' }}</flux:select.option>
+            @endforeach
+        </flux:select>
         <flux:textarea wire:model="description" label="Description (optional)" maxlength="10000" />
         <flux:button type="submit" variant="primary" :disabled="$this->categories->isEmpty()" wire:loading.attr="disabled">Save expense</flux:button>
     </form>

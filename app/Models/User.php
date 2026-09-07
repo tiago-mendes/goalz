@@ -78,6 +78,12 @@ class User extends Authenticatable
         return $this->hasMany(Account::class);
     }
 
+    /** @return HasMany<CreditCard, $this> */
+    public function creditCards(): HasMany
+    {
+        return $this->hasMany(CreditCard::class);
+    }
+
     /** @return HasMany<Goal, $this> */
     public function goals(): HasMany
     {

@@ -101,7 +101,11 @@ new #[Title('Expenses')] class extends Component {
     private function monthQuery(): HasMany
     {
         return auth()->user()->expenses()->forMonth(CarbonImmutable::createFromFormat('!Y-m', $this->selectedMonth))
-            ->with(['expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id())])
+            ->with([
+                'expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+                'paymentAccount' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+                'creditCard' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+            ])
             ->orderBy('expense_date')->orderBy('id');
     }
 
@@ -134,7 +138,7 @@ new #[Title('Expenses')] class extends Component {
             <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
                 <th scope="col" class="px-4 py-3">Name</th><th scope="col" class="px-4 py-3">Category</th>
                 <th scope="col" class="px-4 py-3">Amount</th><th scope="col" class="px-4 py-3">Date</th>
-                <th scope="col" class="px-4 py-3">Source</th><th scope="col" class="px-4 py-3">Actions</th>
+                <th scope="col" class="px-4 py-3">Source</th><th scope="col" class="px-4 py-3">Payment Source</th><th scope="col" class="px-4 py-3">Actions</th>
             </tr></thead>
             <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                 @forelse ($this->expenses as $expense)
@@ -153,13 +157,14 @@ new #[Title('Expenses')] class extends Component {
                         <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $expense->expense_date->toDateString() }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$expense->fixed_expense_id === null ? 'zinc' : 'green'">{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
+                        <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>
                         <td class="px-4 py-3"><div class="flex gap-2">
                             <flux:button size="sm" :href="route('expenses.edit', ['expenseId' => $expense->id, 'month' => $selectedMonth])" :aria-label="'Edit '.$expense->name" wire:navigate>Edit</flux:button>
                             <flux:button size="sm" wire:click="deleteExpense({{ $expense->id }})" wire:confirm="Delete this expense? You can restore it later." :aria-label="'Delete '.$expense->name" wire:loading.attr="disabled">Delete</flux:button>
                         </div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-4 py-8"><flux:text>No expenses for this month. Add an expense to record a cost.</flux:text></td></tr>
+                    <tr><td colspan="7" class="px-4 py-8"><flux:text>No expenses for this month. Add an expense to record a cost.</flux:text></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -172,7 +177,7 @@ new #[Title('Expenses')] class extends Component {
                 <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
                     <th scope="col" class="px-4 py-3">Name</th><th scope="col" class="px-4 py-3">Category</th>
                     <th scope="col" class="px-4 py-3">Amount</th><th scope="col" class="px-4 py-3">Date</th>
-                    <th scope="col" class="px-4 py-3">Source</th><th scope="col" class="px-4 py-3">Actions</th>
+                    <th scope="col" class="px-4 py-3">Source</th><th scope="col" class="px-4 py-3">Payment Source</th><th scope="col" class="px-4 py-3">Actions</th>
                 </tr></thead>
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                     @forelse ($this->deletedExpenses as $expense)
@@ -191,10 +196,11 @@ new #[Title('Expenses')] class extends Component {
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
                             <td class="whitespace-nowrap px-4 py-3">{{ $expense->expense_date->toDateString() }}</td>
                             <td class="px-4 py-3"><flux:badge>{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
+                            <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>
                             <td class="px-4 py-3"><flux:button size="sm" wire:click="restoreExpense({{ $expense->id }})" :aria-label="'Restore '.$expense->name" wire:loading.attr="disabled">Restore</flux:button></td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="px-4 py-6">No deleted expenses for this month.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-6">No deleted expenses for this month.</td></tr>
                     @endforelse
                 </tbody>
             </table>
