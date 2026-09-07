@@ -73,4 +73,21 @@ class FixedExpensesMariaDbTest extends TestCase
         $this->assertSame($originalCategory, $expense->refresh()->expense_category_id);
         $this->assertSame($expense->user_id, $expense->expenseCategory->user_id);
     }
+
+    public function test_monthly_overview_preserves_large_decimal_totals_and_remaining(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 7));
+        $category = ExpenseCategory::factory()->create();
+        $user = $category->user;
+        $user->default_monthly_income = '9999999999999.99';
+        $user->save();
+        FixedExpense::factory()->for($user)->for($category)->count(2)->create(['amount' => '9999999999999.99']);
+        FixedExpense::factory()->for($user)->for($category)->create(['amount' => '0.03']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')->assertSet('plannedTotal', '20000000000000.01')
+            ->assertSet('remaining', '-10000000000000.02')->assertSee('9999999999999.99');
+
+        $this->assertSame('9999999999999.99', $user->monthlyIncomes()->sole()->amount);
+    }
 }

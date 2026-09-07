@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\FixedExpenseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +24,14 @@ class FixedExpense extends Model
     protected function casts(): array
     {
         return ['amount' => 'decimal:2', 'day_of_month' => 'integer', 'start_date' => 'date', 'is_active' => 'boolean'];
+    }
+
+    public function occurrenceDate(CarbonImmutable $month): ?CarbonImmutable
+    {
+        $month = $month->startOfMonth();
+        $occurrence = $month->setDay(min($this->day_of_month, $month->daysInMonth));
+
+        return $occurrence->toDateString() >= $this->start_date->toDateString() ? $occurrence : null;
     }
 
     /** @return BelongsTo<User, $this> */

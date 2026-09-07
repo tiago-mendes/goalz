@@ -9,7 +9,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('fixed-expenses/create', 'pages::fixed-expenses.form')->name('fixed-expenses.create');
     Route::livewire('fixed-expenses/{fixedExpenseId}/edit', 'pages::fixed-expenses.form')->whereNumber('fixedExpenseId')->name('fixed-expenses.edit');
     Route::livewire('monthly-income', 'pages::monthly-income.index')->name('monthly-income.index');
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
     Route::livewire('expense-categories', 'pages::expense-categories.index')->name('expense-categories.index');
     Route::livewire('expense-categories/create', 'pages::expense-categories.form')->name('expense-categories.create');
     Route::livewire('expense-categories/{categoryId}/edit', 'pages::expense-categories.form')->whereNumber('categoryId')->name('expense-categories.edit');

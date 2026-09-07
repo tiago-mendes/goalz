@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ResolveMonthlyIncome;
 use App\Models\MonthlyIncome;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -35,13 +36,7 @@ new #[Title('Monthly Income')] class extends Component {
     {
         $this->validate(['month' => ['required', 'date_format:Y-m', 'after_or_equal:1000-01', 'before_or_equal:9999-12']]);
         $this->selectedMonth = $this->month;
-        $user = auth()->user();
-        $income = $user->monthlyIncomes()->where($this->period())->first();
-
-        if ($income === null && $user->default_monthly_income !== null) {
-            Gate::authorize('create', MonthlyIncome::class);
-            $income = $user->monthlyIncomes()->firstOrCreate($this->period(), ['amount' => $user->default_monthly_income]);
-        }
+        $income = app(ResolveMonthlyIncome::class)->handle(auth()->user(), ...$this->period());
 
         $this->amount = $income?->amount ?? '';
         $this->resetValidation();
