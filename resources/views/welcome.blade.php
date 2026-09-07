@@ -26,8 +26,22 @@
         </header>
 
         <main class="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-16 text-center">
-            <h1 class="text-7xl font-semibold tracking-tighter sm:text-8xl lg:text-9xl">Goalz</h1>
-            <p class="max-w-xl text-xl leading-relaxed font-medium tracking-tight text-[var(--goalz-muted)] sm:text-2xl">There is always one more hill to climb</p>
+            <div class="flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+                <img
+                    src="{{ asset('images/goalz-hill.png') }}"
+                    alt=""
+                    class="w-24 object-contain sm:w-32 lg:w-36"
+                    aria-hidden="true"
+                >
+
+                <h1 class="text-7xl font-semibold tracking-tighter sm:text-8xl lg:text-9xl">
+                    Goalz
+                </h1>
+            </div>
+
+            <p class="max-w-xl text-xl leading-relaxed font-medium tracking-tight text-[var(--goalz-muted)] sm:text-2xl">
+                There is always one more hill to climb
+            </p>
         </main>
     </body>
 </html>
