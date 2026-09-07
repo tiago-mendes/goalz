@@ -18,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('expense-categories/{categoryId}/edit', 'pages::expense-categories.form')->whereNumber('categoryId')->name('expense-categories.edit');
     Route::livewire('accounts', 'pages::accounts.index')->name('accounts.index');
     Route::livewire('accounts/create', 'pages::accounts.form')->name('accounts.create');
+    Route::livewire('accounts/{accountId}/history', 'pages::accounts.history')->whereNumber('accountId')->name('accounts.history');
     Route::livewire('accounts/{accountId}/edit', 'pages::accounts.form')->whereNumber('accountId')->name('accounts.edit');
     Route::livewire('credit-cards', 'pages::credit-cards.index')->name('credit-cards.index');
     Route::livewire('credit-cards/create', 'pages::credit-cards.form')->name('credit-cards.create');

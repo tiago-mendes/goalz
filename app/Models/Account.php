@@ -52,6 +52,12 @@ class Account extends Model
         return $this->hasMany(GoalAccountAllocation::class);
     }
 
+    /** @return HasMany<AccountBalanceSnapshot, $this> */
+    public function balanceSnapshots(): HasMany
+    {
+        return $this->hasMany(AccountBalanceSnapshot::class);
+    }
+
     public function allocatedAmount(): string
     {
         $total = BigDecimal::of('0.00');

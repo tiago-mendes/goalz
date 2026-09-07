@@ -90,6 +90,7 @@ new #[Title('Accounts')] class extends Component {
                         <td class="px-4 py-3">{{ $account->balance_updated_at->format('Y-m-d H:i') }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$account->is_active ? 'green' : 'zinc'">{{ $account->is_active ? 'Active' : 'Inactive' }}</flux:badge></td>
                         <td class="px-4 py-3"><div class="flex flex-wrap gap-2">
+                            <flux:button size="sm" :href="route('accounts.history', $account->id)" :aria-label="'View balance history for '.$account->name" wire:navigate>History</flux:button>
                             <flux:button size="sm" :href="route('accounts.edit', $account->id)" :aria-label="'Edit '.$account->name" wire:navigate>Edit</flux:button>
                             <flux:button size="sm" wire:click="setActive({{ $account->id }}, {{ $account->is_active ? 'false' : 'true' }})" wire:confirm="Change this account's active status?" wire:loading.attr="disabled">{{ $account->is_active ? 'Deactivate' : 'Activate' }}</flux:button>
                         </div></td>
