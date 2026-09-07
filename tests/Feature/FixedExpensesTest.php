@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
@@ -82,7 +81,7 @@ class FixedExpensesTest extends TestCase
         $expense->fill(['user_id' => $other->id])->save();
         $this->assertSame($category->user_id, $expense->refresh()->user_id);
         $this->assertSame(0, $other->fixedExpenses()->count());
-        $this->assertFalse(Schema::hasTable('expenses'));
+        $this->assertDatabaseCount('expenses', 0);
         $this->assertDatabaseCount('monthly_incomes', 0);
     }
 
@@ -104,7 +103,7 @@ class FixedExpensesTest extends TestCase
         $this->assertSame(31, $expense->day_of_month);
         $this->assertSame('2027-01-01', $expense->start_date->toDateString());
         $this->assertFalse($expense->is_active);
-        $this->assertFalse(Schema::hasTable('expenses'));
+        $this->assertDatabaseCount('expenses', 0);
         $this->assertDatabaseCount('monthly_incomes', 0);
     }
 
@@ -121,7 +120,7 @@ class FixedExpensesTest extends TestCase
         foreach (['name', 'amount', 'day_of_month', 'start_date', 'expense_category_id', 'user_id'] as $field) {
             $this->assertSame($original[$field], $expense->getRawOriginal($field));
         }
-        $this->assertFalse(Schema::hasTable('expenses'));
+        $this->assertDatabaseCount('expenses', 0);
         $this->assertDatabaseCount('monthly_incomes', 0);
     }
 

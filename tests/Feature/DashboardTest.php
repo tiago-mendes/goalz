@@ -7,7 +7,6 @@ use App\Models\FixedExpense;
 use App\Models\MonthlyIncome;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
@@ -56,7 +55,7 @@ class DashboardTest extends TestCase
         $this->assertSame('9876.54', $foreign->refresh()->amount);
         $this->assertDatabaseCount('monthly_incomes', 2);
         $this->assertDatabaseCount('fixed_expenses', 2);
-        $this->assertFalse(Schema::hasTable('expenses'));
+        $this->assertDatabaseCount('expenses', 0);
     }
 
     public function test_month_changes_refresh_all_figures_and_preserve_snapshots(): void
