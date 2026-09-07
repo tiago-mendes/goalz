@@ -18,6 +18,7 @@
                     <flux:sidebar.item icon="tag" :href="route('expense-categories.index')" :current="request()->routeIs('expense-categories.*')" wire:navigate>Categories</flux:sidebar.item>
                     <flux:sidebar.item icon="banknotes" :href="route('monthly-income.index')" :current="request()->routeIs('monthly-income.*')" wire:navigate>Income</flux:sidebar.item>
                     <flux:sidebar.item icon="calendar-days" :href="route('fixed-expenses.index')" :current="request()->routeIs('fixed-expenses.*')" wire:navigate>Fixed Expenses</flux:sidebar.item>
+                    <flux:sidebar.item icon="banknotes" :href="route('expenses.index')" :current="request()->routeIs('expenses.*')" wire:navigate>Expenses</flux:sidebar.item>
                     @can('manage-users')
                         <flux:sidebar.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.*')" wire:navigate>Manage Users</flux:sidebar.item>
                     @endcan

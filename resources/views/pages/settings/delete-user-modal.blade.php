@@ -3,6 +3,7 @@
 use App\Concerns\PasswordValidationRules;
 use App\Livewire\Actions\Logout;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 new class extends Component {
@@ -19,7 +20,14 @@ new class extends Component {
             'password' => $this->currentPasswordRules(),
         ]);
 
-        tap(Auth::user(), $logout(...))->delete();
+        $user = Auth::user();
+        DB::transaction(function () use ($user): void {
+            $user->expenses()->delete();
+            $user->delete();
+        });
+
+        $user->setRememberToken(null);
+        $logout();
 
         $this->redirect('/', navigate: true);
     }

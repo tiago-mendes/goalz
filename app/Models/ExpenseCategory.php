@@ -59,4 +59,10 @@ class ExpenseCategory extends Model
     {
         return preg_match('/\A#[0-9A-Fa-f]{6}\z/', $this->color) === 1 ? $this->color : self::DEFAULT_COLOR;
     }
+
+    /** @return HasMany<Expense, $this> */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
 }
