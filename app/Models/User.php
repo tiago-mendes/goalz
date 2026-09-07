@@ -78,6 +78,12 @@ class User extends Authenticatable
         return $this->hasMany(Account::class);
     }
 
+    /** @return HasMany<Goal, $this> */
+    public function goals(): HasMany
+    {
+        return $this->hasMany(Goal::class);
+    }
+
     /**
      * Get the user's initials
      */
