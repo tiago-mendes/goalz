@@ -19,6 +19,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('accounts', 'pages::accounts.index')->name('accounts.index');
     Route::livewire('accounts/create', 'pages::accounts.form')->name('accounts.create');
     Route::livewire('accounts/{accountId}/edit', 'pages::accounts.form')->whereNumber('accountId')->name('accounts.edit');
+    Route::livewire('goals', 'pages::goals.index')->name('goals.index');
+    Route::livewire('goals/create', 'pages::goals.form')->name('goals.create');
+    Route::livewire('goals/{goalId}/edit', 'pages::goals.form')->whereNumber('goalId')->name('goals.edit');
 });
 
 Route::middleware(['auth', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {
