@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
 use App\Models\MonthlyIncome;
@@ -30,7 +31,8 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->get(route('dashboard'));
-        $response->assertOk();
+        $response->assertOk()->assertSeeText('Monthly Income')->assertSeeText('Expenses')->assertSeeText('Remaining')
+            ->assertDontSee('Planned Fixed Expenses')->assertDontSee('Actual Expenses');
     }
 
     #[TestWith(['user'])]
@@ -55,7 +57,7 @@ class DashboardTest extends TestCase
         $this->assertSame('9876.54', $foreign->refresh()->amount);
         $this->assertDatabaseCount('monthly_incomes', 2);
         $this->assertDatabaseCount('fixed_expenses', 2);
-        $this->assertDatabaseCount('expenses', 0);
+        $this->assertDatabaseCount('expenses', 1);
     }
 
     public function test_month_changes_refresh_all_figures_and_preserve_snapshots(): void
@@ -68,11 +70,11 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         $page = Livewire::test('pages::dashboard')->assertSet('selectedMonth', '2026-09')
-            ->assertSee('September 2026')->assertSet('plannedTotal', '0.00')->assertSet('remaining', '500.00')
+            ->assertSee('September 2026')->assertSet('actualTotal', '0.00')->assertSet('remaining', '500.00')
             ->assertDontSee('October cost');
         $page->set('month', '2026-10')->call('openMonth')->assertHasNoErrors()
             ->assertSee('October 2026')->assertSee('October cost')->assertSee('1000.00')
-            ->assertSet('plannedTotal', '10.25')->assertSet('remaining', '989.75');
+            ->assertSet('actualTotal', '10.25')->assertSet('remaining', '989.75');
         Livewire::test('pages::monthly-income.index')->set('default_monthly_income', '2000.00')->call('saveDefault');
         $page->set('month', '2026-09')->call('openMonth')->assertSet('remaining', '500.00');
         $page->set('month', '2026-10')->call('openMonth')->assertSet('remaining', '989.75');
@@ -89,7 +91,7 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         Livewire::test('pages::dashboard')->assertSee('Not configured')->assertSee('Not available')
-            ->assertSet('remaining', null)->assertSet('plannedTotal', '0.30');
+            ->assertSet('remaining', null)->assertSet('actualTotal', '0.30');
 
         $this->assertDatabaseCount('monthly_incomes', 0);
     }
@@ -101,7 +103,7 @@ class DashboardTest extends TestCase
         FixedExpense::factory()->for($user)->create(['amount' => '0.20', 'start_date' => '1000-01-01']);
         $this->actingAs($user);
 
-        Livewire::test('pages::dashboard')->assertSee('BRL 0.00')->assertSet('plannedTotal', '0.30')
+        Livewire::test('pages::dashboard')->assertSee('BRL 0.00')->assertSet('actualTotal', '0.30')
             ->assertSet('remaining', '-0.30')->assertDontSee('Not configured')->call('openMonth');
 
         $this->assertSame('0.00', $user->monthlyIncomes()->sole()->amount);
@@ -130,10 +132,9 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         Livewire::test('pages::dashboard')->set('month', '2026-09')->call('openMonth')
-            ->assertDontSee('Too early')->assertDontSee('Inactive bill')->assertSee('On start date')->assertSet('plannedTotal', '20.00')
-            ->set('month', '2026-10')->call('openMonth')->assertSee('Too early')->assertSet('plannedTotal', '30.00')
-            ->set('month', '2025-01')->call('openMonth')->assertDontSee('Inactive bill')->assertSet('plannedTotal', '0.00')
-            ->assertSee('No planned fixed expenses for this month');
+            ->assertDontSee('Too early')->assertDontSee('Inactive bill')->assertSee('On start date')->assertSet('actualTotal', '20.00')
+            ->set('month', '2026-10')->call('openMonth')->assertSee('Too early')->assertSet('actualTotal', '30.00')
+            ->set('month', '2025-01')->call('openMonth')->assertDontSee('Inactive bill')->assertSet('actualTotal', '0.00');
     }
 
     #[TestWith([''])]
@@ -173,10 +174,103 @@ class DashboardTest extends TestCase
     {
         $user = User::factory()->create();
         $category = ExpenseCategory::factory()->create(['name' => 'Foreign category']);
-        FixedExpense::factory()->for($user)->create(['name' => '<script>alert(1)</script>', 'expense_category_id' => $category->id, 'start_date' => '1000-01-01']);
+        Expense::factory()->for($user)->create(['name' => '<script>alert(1)</script>', 'expense_category_id' => $category->id]);
         $this->actingAs($user);
 
         Livewire::test('pages::dashboard')->assertSee('Category unavailable')->assertDontSee('Foreign category')
             ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false)->assertDontSee('<script>alert(1)</script>', false);
+    }
+
+    public function test_actual_total_includes_owned_manual_and_recurring_expenses_only(): void
+    {
+        $user = User::factory()->create(['default_monthly_income' => '1000.30']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Food']);
+        $fixed = FixedExpense::factory()->for($user)->create(['name' => 'Recurring lunch', 'amount' => '0.20', 'expense_category_id' => $category->id]);
+        Expense::factory()->for($user)->create(['name' => 'Manual lunch', 'amount' => '0.10', 'expense_category_id' => $category->id]);
+        Expense::factory()->for($user)->deleted()->create(['name' => 'Deleted lunch', 'amount' => '99.99', 'expense_category_id' => $category->id]);
+        Expense::factory()->for($user)->create(['name' => 'Other month', 'amount' => '88.88', 'expense_date' => '2026-10-01', 'expense_category_id' => $category->id]);
+        Expense::factory()->create(['name' => 'Private lunch', 'amount' => '77.77']);
+        $this->actingAs($user);
+
+        $page = Livewire::test('pages::dashboard')->set('month', '2026-09')->call('openMonth');
+
+        $page->assertSet('actualTotal', '0.30')->assertSet('remaining', '1000.00')
+            ->assertSee('Manual lunch')->assertSee('Recurring lunch')->assertSee('Food')
+            ->assertSeeText(['Recurring', '0.20', '66.7%', 'Manual', '0.10', '33.3%'])
+            ->assertDontSee('Deleted lunch')->assertDontSee('Other month')->assertDontSee('Private lunch');
+        $this->assertSame($fixed->id, $user->expenses()->where('fixed_expense_id', $fixed->id)->sole()->fixed_expense_id);
+    }
+
+    public function test_dashboard_materialization_is_idempotent_and_does_not_regenerate_deleted_occurrence(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 7));
+        $fixed = FixedExpense::factory()->create(['name' => 'Recurring bill', 'amount' => '12.34', 'day_of_month' => 25]);
+        $this->actingAs($fixed->user);
+
+        $page = Livewire::test('pages::dashboard')->assertSet('actualTotal', '12.34')
+            ->assertSeeText(['Recurring', '12.34', '100.0%', 'Manual', '0%']);
+        $expense = $fixed->expenses()->sole();
+        $expense->deleted_by_user_at = now();
+        $expense->save();
+        $page->call('openMonth');
+        Livewire::test('pages::dashboard')->assertSet('actualTotal', '0.00');
+
+        $this->assertSame(1, $fixed->expenses()->count());
+    }
+
+    public function test_all_selected_month_expenses_are_ordered_and_linked_to_the_selected_month(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL', 'default_monthly_income' => '5000.00']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Safe category', 'icon' => 'not-an-icon', 'color' => 'red']);
+        $foreignCategory = ExpenseCategory::factory()->create(['name' => 'Private category']);
+        foreach (range(1, 6) as $day) {
+            Expense::factory()->for($user)->create([
+                'name' => 'Expense '.$day,
+                'expense_date' => '2026-09-'.str_pad((string) $day, 2, '0', STR_PAD_LEFT),
+                'expense_category_id' => $category->id,
+            ]);
+        }
+        Expense::factory()->for($user)->create(['name' => 'Unavailable category', 'expense_date' => '2026-09-07', 'expense_category_id' => $foreignCategory->id]);
+        Expense::factory()->for($user)->create(['name' => 'Tie breaker first', 'expense_date' => '2026-09-06', 'expense_category_id' => $category->id]);
+        Expense::factory()->for($user)->deleted()->create(['name' => 'Deleted recent', 'expense_date' => '2026-09-30', 'expense_category_id' => $category->id]);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')->set('month', '2026-09')->call('openMonth')
+            ->assertSeeInOrder(['Unavailable category', 'Tie breaker first', 'Expense 6', 'Expense 5', 'Expense 4', 'Expense 3', 'Expense 2', 'Expense 1'])
+            ->assertDontSee('Deleted recent')
+            ->assertSee('Manual')->assertSee('Category unavailable')
+            ->assertSee(route('expenses.index', ['month' => '2026-09']));
+    }
+
+    public function test_remaining_allows_negative_values_and_is_unavailable_without_income(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 7));
+        $user = User::factory()->create(['default_monthly_income' => '5.00']);
+        Expense::factory()->for($user)->create(['amount' => '6.00', 'expense_date' => '2026-10-01']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')->assertSet('actualTotal', '6.00')->assertSet('remaining', '-1.00');
+
+        $user->default_monthly_income = null;
+        $user->save();
+        $user->monthlyIncomes()->delete();
+        Livewire::test('pages::dashboard')->assertSet('actualTotal', '6.00')->assertSet('remaining', null)->assertSee('Not available');
+    }
+
+    public function test_zero_expense_month_has_zero_breakdown_percentages(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test('pages::dashboard')->assertSet('actualTotal', '0.00')
+            ->assertSeeText(['Recurring', '0.00', '0%', 'Manual']);
+    }
+
+    public function test_manual_only_expenses_have_a_full_manual_breakdown(): void
+    {
+        $user = User::factory()->create();
+        Expense::factory()->for($user)->create(['amount' => '10.00']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')->assertSeeText(['Recurring', '0.00', '0%', 'Manual', '10.00', '100.0%']);
     }
 }
