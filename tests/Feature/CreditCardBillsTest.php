@@ -7,6 +7,7 @@ use App\BillingCycleResolver;
 use App\Models\Account;
 use App\Models\CreditCard;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -144,5 +145,38 @@ class CreditCardBillsTest extends TestCase
             ->assertSeeText('2026-10-20')
             ->assertSeeText('BRL 75.25')
             ->assertSeeText('Inactive');
+    }
+
+    public function test_bill_expenses_render_safe_category_icons_and_unavailable_fallbacks(): void
+    {
+        $card = CreditCard::factory()->inactive()->create(['cycle_start_day' => 13, 'due_day' => 20]);
+        $category = ExpenseCategory::factory()->for($card->user)->create([
+            'name' => 'Historical category',
+            'icon' => 'gift',
+            'color' => '#ABCDEF',
+            'is_active' => false,
+        ]);
+        $foreignCategory = ExpenseCategory::factory()->create(['name' => 'Private category']);
+        Expense::factory()->for($card->user)->create([
+            'name' => 'Historical categorized expense',
+            'credit_card_id' => $card->id,
+            'expense_category_id' => $category->id,
+            'expense_date' => '2026-09-13',
+        ]);
+        Expense::factory()->for($card->user)->create([
+            'name' => 'Unavailable categorized expense',
+            'credit_card_id' => $card->id,
+            'expense_category_id' => $foreignCategory->id,
+            'expense_date' => '2026-09-14',
+        ]);
+        $this->actingAs($card->user);
+
+        Livewire::test('pages::credit-cards.show', ['creditCardId' => $card->id])
+            ->set('billMonth', '2026-10')
+            ->call('openBill')
+            ->assertSeeText(['Historical category', 'Unavailable categorized expense', 'Category unavailable'])
+            ->assertSee('style="color: #ABCDEF"', escape: false)
+            ->assertSee('aria-hidden="true"', escape: false)
+            ->assertDontSee('not-an-icon');
     }
 }

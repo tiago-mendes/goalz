@@ -319,6 +319,7 @@ class DashboardTest extends TestCase
             ->assertSet('financialPosition.allocatedAssets', '250.05')
             ->assertSet('financialPosition.freeAssets', '750.05')
             ->assertSeeText(['Current Financial Position', 'BRL 1000.10', 'BRL 250.05', 'BRL 750.05', 'Emergency Fund', '12.5%', 'Active'])
+            ->assertSee('bg-red-600', escape: false)
             ->assertDontSeeText('Private Goal');
     }
 
