@@ -39,6 +39,31 @@ class DashboardTest extends TestCase
             ->assertDontSee('Planned Fixed Expenses')->assertDontSee('Actual Expenses');
     }
 
+    public function test_dashboard_sections_are_independently_collapsible_and_default_to_expanded(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 7));
+        $this->actingAs(User::factory()->create());
+
+        $response = $this->get(route('dashboard'));
+        $content = $response->getContent();
+
+        $response->assertOk()->assertSeeText('September 2026')->assertSeeText('Monthly overview')
+            ->assertDontSee('>Monthly Overview<', false)->assertDontSeeText('Your income and expenses.')
+            ->assertSeeInOrder(['Month Info', 'Goals', 'Current Financial Position', 'Credit Card'])
+            ->assertSee('x-bind:aria-expanded="isOpen"', false)
+            ->assertSee('aria-controls="month-info-content"', false)
+            ->assertSee('aria-controls="goals-content"', false)
+            ->assertSee('aria-controls="financial-position-content"', false)
+            ->assertSee('aria-controls="credit-card-content"', false)
+            ->assertSee('Collapse Month Info', false)->assertSee('Expand Month Info', false)
+            ->assertSee('Collapse Goals', false)->assertSee('Expand Goals', false)
+            ->assertSee('Collapse Current Financial Position', false)->assertSee('Expand Current Financial Position', false)
+            ->assertSee('Collapse Credit Card', false)->assertSee('Expand Credit Card', false)
+            ->assertDontSeeText('Collapse')->assertDontSeeText('Expand');
+
+        $this->assertSame(4, substr_count($content, 'x-data="{ isOpen: true }"'));
+    }
+
     #[TestWith(['user'])]
     #[TestWith(['admin'])]
     public function test_overview_is_private_and_uses_the_owners_currency(string $role): void

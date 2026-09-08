@@ -197,8 +197,8 @@ new #[Title('Monthly Overview')] class extends Component {
 <section class="mx-auto w-full max-w-6xl space-y-6">
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div class="space-y-2">
-            <flux:heading size="xl" level="1">Monthly Overview</flux:heading>
-            <flux:text>{{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }} · Your income and expenses.</flux:text>
+            <flux:heading size="xl" level="1">{{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
+            <flux:text>Monthly overview</flux:text>
         </div>
         <form wire:submit="openMonth" class="flex flex-wrap items-end gap-3">
             <flux:input wire:model="month" label="Month" type="month" min="1000-01" max="9999-12" required />
@@ -206,7 +206,20 @@ new #[Title('Monthly Overview')] class extends Component {
         </form>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50" wire:target="openMonth">
+    <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="month-info-heading">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <flux:heading size="lg" level="2" id="month-info-heading">Month Info</flux:heading>
+                <flux:text>Summary and expenses for the selected month.</flux:text>
+            </div>
+            <button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Month Info' : 'Expand Month Info'" aria-controls="month-info-content" @click="isOpen = !isOpen">
+                <flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" />
+                <flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" />
+                <span class="sr-only" x-text="isOpen ? 'Collapse Month Info' : 'Expand Month Info'"></span>
+            </button>
+        </div>
+        <div id="month-info-content" x-show="isOpen" class="space-y-4">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50" wire:target="openMonth">
         <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading level="2">Monthly Income</flux:heading>
             <p class="break-words text-2xl font-semibold tabular-nums">{{ $this->income ? auth()->user()->currency.' '.$this->income->amount : 'Not configured' }}</p>
@@ -226,16 +239,111 @@ new #[Title('Monthly Overview')] class extends Component {
             <p class="break-words text-2xl font-semibold tabular-nums">{{ $this->remaining !== null ? auth()->user()->currency.' '.$this->remaining : 'Not available' }}</p>
             <flux:text>Income minus actual expenses.</flux:text>
         </div>
-    </div>
+            </div>
 
-    <section class="space-y-4" aria-labelledby="financial-position-heading">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <flux:heading level="3">Expenses</flux:heading>
+                <flux:button :href="route('expenses.index', ['month' => $selectedMonth])" wire:navigate>Manage expenses</flux:button>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50" wire:target="openMonth">
+                <table class="w-full text-left text-sm">
+                    <caption class="sr-only">Expenses for {{ $selectedMonth }}</caption>
+                    <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
+                        <th scope="col" class="px-4 py-3">Date</th><th scope="col" class="px-4 py-3">Name</th>
+                        <th scope="col" class="px-4 py-3">Category</th><th scope="col" class="px-4 py-3">Source</th>
+                        <th scope="col" class="px-4 py-3 text-right">Amount</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                        @forelse ($this->expenses as $expense)
+                            <tr wire:key="expense-{{ $selectedMonth }}-{{ $expense->id }}">
+                                <td class="whitespace-nowrap px-4 py-3"><time datetime="{{ $expense->expense_date->toDateString() }}">{{ $expense->expense_date->format('M j') }}</time></td>
+                                <td class="px-4 py-3">{{ $expense->name }}</td>
+                                <td class="px-4 py-3">
+                                    @if ($category = $expense->expenseCategory)
+                                        <span class="inline-flex items-center gap-2">
+                                            <span class="shrink-0" style="color: {{ $category->safeColor() }}" aria-hidden="true"><flux:icon :name="$category->safeIcon()" class="size-5" /></span>
+                                            <span>{{ $category->name }}</span>
+                                        </span>
+                                    @else
+                                        Category unavailable
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3"><flux:badge :color="$expense->fixed_expense_id === null ? 'zinc' : 'green'">{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-4 py-8"><flux:text>No expenses recorded for this month.</flux:text></td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="goals-heading">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <flux:heading size="lg" level="2" id="goals-heading">Goals</flux:heading>
+                <flux:text>Current goal progress and designated funds.</flux:text>
+            </div>
+            <div class="flex items-center gap-2">
+                <flux:link :href="route('goals.index')" wire:navigate>Manage goals</flux:link>
+                <button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Goals' : 'Expand Goals'" aria-controls="goals-content" @click="isOpen = !isOpen">
+                    <flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" />
+                    <flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" />
+                    <span class="sr-only" x-text="isOpen ? 'Collapse Goals' : 'Expand Goals'"></span>
+                </button>
+            </div>
+        </div>
+        <div id="goals-content" x-show="isOpen" class="space-y-4">
+            <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
+                <table class="w-full min-w-[44rem] text-left text-sm">
+                    <caption class="sr-only">Current goals</caption>
+                    <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
+                        <th scope="col" class="px-4 py-3">Goal</th><th scope="col" class="px-4 py-3 text-right">Target</th>
+                        <th scope="col" class="px-4 py-3 text-right">Allocated</th><th scope="col" class="px-4 py-3 text-right">Remaining</th>
+                        <th scope="col" class="px-4 py-3">Progress</th><th scope="col" class="px-4 py-3">Status</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                        @forelse ($this->goals as $goal)
+                            <tr wire:key="dashboard-goal-{{ $goal->id }}">
+                                <td class="px-4 py-3 font-medium">{{ $goal->name }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->target_amount }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->allocatedAmount() }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ BigDecimal::of($goal->remainingAmount())->isNegative() ? 'Overfunded · '.auth()->user()->currency.' '.$goal->overfundedAmount() : auth()->user()->currency.' '.$goal->remainingAmount() }}</td>
+                                <td class="min-w-40 px-4 py-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-green-600" style="width: {{ $goal->visualProgressPercentage() }}%"></div></div>
+                                        <span class="tabular-nums">{{ $goal->progressPercentage() }}%</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3"><flux:badge :color="$goal->status === GoalStatus::Active ? 'green' : 'yellow'">{{ $goal->status->label() }}</flux:badge></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="px-4 py-6"><flux:text>No active or paused goals yet.</flux:text><div class="mt-3"><flux:button size="sm" :href="route('goals.create')" wire:navigate>Create goal</flux:button></div></td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="financial-position-heading">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <flux:heading size="lg" level="2" id="financial-position-heading">Current Financial Position</flux:heading>
                 <flux:text>Current balances and allocations across your active accounts.</flux:text>
             </div>
-            <flux:link :href="route('accounts.index')" wire:navigate>Manage accounts</flux:link>
+            <div class="flex items-center gap-2">
+                <flux:link :href="route('accounts.index')" wire:navigate>Manage accounts</flux:link>
+                <button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Current Financial Position' : 'Expand Current Financial Position'" aria-controls="financial-position-content" @click="isOpen = !isOpen">
+                    <flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" />
+                    <flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" />
+                    <span class="sr-only" x-text="isOpen ? 'Collapse Current Financial Position' : 'Expand Current Financial Position'"></span>
+                </button>
+            </div>
         </div>
+        <div id="financial-position-content" x-show="isOpen" class="space-y-4">
         <div class="grid gap-4 sm:grid-cols-3">
             <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:heading level="3">Total Assets</flux:heading>
@@ -260,56 +368,25 @@ new #[Title('Monthly Overview')] class extends Component {
                 <flux:link :href="route('accounts.index')" wire:navigate>Review allocations</flux:link>
             </flux:callout>
         @endif
-    </section>
-
-    <section class="space-y-4" aria-labelledby="goals-heading">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <flux:heading size="lg" level="2" id="goals-heading">Goals</flux:heading>
-                <flux:text>Current goal progress and designated funds.</flux:text>
-            </div>
-            <flux:link :href="route('goals.index')" wire:navigate>Manage goals</flux:link>
-        </div>
-        <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
-            <table class="w-full min-w-[44rem] text-left text-sm">
-                <caption class="sr-only">Current goals</caption>
-                <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
-                    <th scope="col" class="px-4 py-3">Goal</th><th scope="col" class="px-4 py-3 text-right">Target</th>
-                    <th scope="col" class="px-4 py-3 text-right">Allocated</th><th scope="col" class="px-4 py-3 text-right">Remaining</th>
-                    <th scope="col" class="px-4 py-3">Progress</th><th scope="col" class="px-4 py-3">Status</th>
-                </tr></thead>
-                <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                    @forelse ($this->goals as $goal)
-                        <tr wire:key="dashboard-goal-{{ $goal->id }}">
-                            <td class="px-4 py-3 font-medium">{{ $goal->name }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->target_amount }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->allocatedAmount() }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ BigDecimal::of($goal->remainingAmount())->isNegative() ? 'Overfunded · '.auth()->user()->currency.' '.$goal->overfundedAmount() : auth()->user()->currency.' '.$goal->remainingAmount() }}</td>
-                            <td class="min-w-40 px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-green-600" style="width: {{ $goal->visualProgressPercentage() }}%"></div></div>
-                                    <span class="tabular-nums">{{ $goal->progressPercentage() }}%</span>
-                                </div>
-                            </td>
-                            <td class="px-4 py-3"><flux:badge :color="$goal->status === GoalStatus::Active ? 'green' : 'yellow'">{{ $goal->status->label() }}</flux:badge></td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6" class="px-4 py-6"><flux:text>No active or paused goals yet.</flux:text><div class="mt-3"><flux:button size="sm" :href="route('goals.create')" wire:navigate>Create goal</flux:button></div></td></tr>
-                    @endforelse
-                </tbody>
-            </table>
         </div>
     </section>
 
-    <section class="space-y-4" aria-labelledby="credit-card-bills-heading">
+    <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="credit-card-bills-heading">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <flux:heading size="lg" level="2" id="credit-card-bills-heading">Credit Card Bills — {{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
+                <flux:heading size="lg" level="2" id="credit-card-bills-heading">Credit Card</flux:heading>
                 <flux:text>Bills whose due date falls in the selected month. Informational only.</flux:text>
             </div>
-            <flux:link :href="route('credit-cards.index')" wire:navigate>Manage credit cards</flux:link>
+            <div class="flex items-center gap-2">
+                <flux:link :href="route('credit-cards.index')" wire:navigate>Manage credit cards</flux:link>
+                <button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Credit Card' : 'Expand Credit Card'" aria-controls="credit-card-content" @click="isOpen = !isOpen">
+                    <flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" />
+                    <flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" />
+                    <span class="sr-only" x-text="isOpen ? 'Collapse Credit Card' : 'Expand Credit Card'"></span>
+                </button>
+            </div>
         </div>
-        <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
+        <div id="credit-card-content" x-show="isOpen" class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
             <table class="w-full min-w-[44rem] text-left text-sm">
                 <caption class="sr-only">Credit card bills due in {{ $selectedMonth }}</caption>
                 <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
@@ -335,40 +412,4 @@ new #[Title('Monthly Overview')] class extends Component {
         </div>
     </section>
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <flux:heading size="lg" level="2">Expenses</flux:heading>
-        <flux:button :href="route('expenses.index', ['month' => $selectedMonth])" wire:navigate>Manage expenses</flux:button>
-    </div>
-    <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50" wire:target="openMonth">
-        <table class="w-full text-left text-sm">
-            <caption class="sr-only">Expenses for {{ $selectedMonth }}</caption>
-            <thead class="bg-zinc-50 dark:bg-zinc-900"><tr>
-                <th scope="col" class="px-4 py-3">Date</th><th scope="col" class="px-4 py-3">Name</th>
-                <th scope="col" class="px-4 py-3">Category</th><th scope="col" class="px-4 py-3">Source</th>
-                <th scope="col" class="px-4 py-3 text-right">Amount</th>
-            </tr></thead>
-            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                @forelse ($this->expenses as $expense)
-                    <tr wire:key="expense-{{ $selectedMonth }}-{{ $expense->id }}">
-                        <td class="whitespace-nowrap px-4 py-3"><time datetime="{{ $expense->expense_date->toDateString() }}">{{ $expense->expense_date->format('M j') }}</time></td>
-                        <td class="px-4 py-3">{{ $expense->name }}</td>
-                        <td class="px-4 py-3">
-                            @if ($category = $expense->expenseCategory)
-                                <span class="inline-flex items-center gap-2">
-                                    <span class="shrink-0" style="color: {{ $category->safeColor() }}" aria-hidden="true"><flux:icon :name="$category->safeIcon()" class="size-5" /></span>
-                                    <span>{{ $category->name }}</span>
-                                </span>
-                            @else
-                                Category unavailable
-                            @endif
-                        </td>
-                        <td class="px-4 py-3"><flux:badge :color="$expense->fixed_expense_id === null ? 'zinc' : 'green'">{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
-                        <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="px-4 py-8"><flux:text>No expenses recorded for this month.</flux:text></td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
 </section>
