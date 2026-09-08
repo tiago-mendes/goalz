@@ -257,7 +257,7 @@ new #[Title('Manage expense')] class extends Component {
                 <flux:select.option :value="$category->id" wire:key="category-{{ $category->id }}">{{ $category->name }}{{ $category->is_active ? '' : ' (Inactive — current category)' }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:input wire:model="amount" :label="'Amount ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.01" required />
+        <flux:input wire:model="amount" :label="'Amount ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.01" required />
         <flux:input wire:model="expense_date" label="Expense date" type="date" min="1000-01-01" max="9999-12-31" required />
         <flux:select wire:model="payment_source" label="Payment source">
             <flux:select.option value="">Not specified</flux:select.option>
@@ -274,7 +274,7 @@ new #[Title('Manage expense')] class extends Component {
     <flux:modal wire:model="showDuplicate" :dismissible="false" :closable="false" class="md:w-120">
         <div class="space-y-6">
             <flux:heading size="lg">A matching deleted expense already exists.</flux:heading>
-            <flux:text>{{ $name }} · {{ auth()->user()->currency }} {{ $amount }} · {{ $expense_date }}</flux:text>
+            <flux:text>{{ $name }} · <x-money :currency="auth()->user()->currency" :amount="$amount" /> · {{ $expense_date }}</flux:text>
             <flux:text>Restore the deleted expense or keep it deleted and create a new one.</flux:text>
             <div class="flex flex-wrap gap-3">
                 <flux:button wire:click="restoreDuplicate" variant="primary" wire:loading.attr="disabled">Restore expense</flux:button>

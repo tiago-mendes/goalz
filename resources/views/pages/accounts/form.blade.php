@@ -98,7 +98,7 @@ new #[Title('Manage account')] class extends Component {
                 <flux:select.option value="{{ $accountType->value }}">{{ $accountType->label() }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:input wire:model="current_balance" :label="'Current balance ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.00" required />
+        <flux:input wire:model="current_balance" :label="'Current balance ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.00" required />
         <flux:text>Accounts are manually maintained current asset balances. Zero is valid.</flux:text>
         <flux:button type="submit" variant="primary" wire:loading.attr="disabled">Save account</flux:button>
     </form>

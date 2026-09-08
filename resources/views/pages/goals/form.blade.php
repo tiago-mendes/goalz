@@ -77,7 +77,7 @@ new #[Title('Manage goal')] class extends Component {
     <flux:heading size="xl" level="1">{{ $goalId ? 'Edit goal' : 'Create goal' }}</flux:heading>
     <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="name" label="Name" maxlength="100" required autocomplete="off" />
-        <flux:input wire:model="target_amount" :label="'Target amount ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.01" required />
+            <flux:input wire:model="target_amount" :label="'Target amount ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.01" required />
         <flux:input wire:model="target_date" label="Target date" type="date" min="1000-01-01" max="9999-12-31" />
         <flux:text>Goals are plans. Allocating funds designates part of an account balance without moving money.</flux:text>
         <flux:button type="submit" variant="primary" wire:loading.attr="disabled">Save goal</flux:button>

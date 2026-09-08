@@ -132,7 +132,7 @@ class DashboardTest extends TestCase
         FixedExpense::factory()->for($user)->create(['amount' => '0.20', 'start_date' => '1000-01-01']);
         $this->actingAs($user);
 
-        Livewire::test('pages::dashboard')->assertSee('BRL 0.00')->assertSet('actualTotal', '0.30')
+        Livewire::test('pages::dashboard')->assertSee('R$ 0.00')->assertSet('actualTotal', '0.30')
             ->assertSet('remaining', '-0.30')->assertDontSee('Not configured')->call('openMonth');
 
         $this->assertSame('0.00', $user->monthlyIncomes()->sole()->amount);
@@ -318,7 +318,7 @@ class DashboardTest extends TestCase
             ->assertSet('financialPosition.totalAssets', '1000.10')
             ->assertSet('financialPosition.allocatedAssets', '250.05')
             ->assertSet('financialPosition.freeAssets', '750.05')
-            ->assertSeeText(['Current Financial Position', 'BRL 1000.10', 'BRL 250.05', 'BRL 750.05', 'Emergency Fund', '12.5%', 'Active'])
+            ->assertSeeText(['Current Financial Position', 'R$ 1000.10', 'R$ 250.05', 'R$ 750.05', 'Emergency Fund', '12.5%', 'Active'])
             ->assertSee('bg-red-600', escape: false)
             ->assertDontSeeText('Private Goal');
     }
@@ -336,7 +336,7 @@ class DashboardTest extends TestCase
         Livewire::test('pages::dashboard')
             ->assertSet('financialPosition.overallocatedCount', 1)
             ->assertSet('financialPosition.overallocatedTotal', '60.00')
-            ->assertSeeText(['Allocation warning', '1 account has', 'BRL 60.00', 'Review allocations']);
+            ->assertSeeText(['Allocation warning', '1 account has', 'R$ 60.00', 'Review allocations']);
 
         $this->assertSame('260.00', $account->goalAccountAllocations()->sole()->amount);
         $this->assertSame('200.00', $account->refresh()->current_balance);
@@ -356,13 +356,13 @@ class DashboardTest extends TestCase
             ->assertSet('actualTotal', '625.00')
             ->assertSet('remaining', '375.00')
             ->assertSet('financialPosition.totalAssets', '2000.00')
-            ->assertSeeText(['Nubank Mastercard', 'Aug 13 – Sep 12', 'Sep 20, 2026', 'BRL 500.00']);
+            ->assertSeeText(['Nubank Mastercard', 'Aug 13 – Sep 12', 'Sep 20, 2026', 'R$ 500.00']);
 
         $page->set('month', '2026-10')->call('openMonth')
             ->assertSet('actualTotal', '0.00')
             ->assertSet('remaining', '1000.00')
             ->assertSet('financialPosition.totalAssets', '2000.00')
-            ->assertSeeText(['Sep 13 – Oct 12', 'Oct 20, 2026', 'BRL 125.00'])
+            ->assertSeeText(['Sep 13 – Oct 12', 'Oct 20, 2026', 'R$ 125.00'])
             ->assertDontSeeText('Aug 13 – Sep 12');
 
         $this->assertSame('2000.00', $account->refresh()->current_balance);

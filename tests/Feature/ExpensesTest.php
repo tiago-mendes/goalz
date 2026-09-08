@@ -44,7 +44,7 @@ class ExpensesTest extends TestCase
         FixedExpense::factory()->create(['name' => 'Foreign template']);
         $this->actingAs($user);
 
-        $this->get('/expenses')->assertSee('Own bill')->assertSee('BRL 10.50')->assertDontSee('Foreign secret')->assertDontSee('8765.43');
+        $this->get('/expenses')->assertSee('Own bill')->assertSee('R$ 10.50')->assertDontSee('Foreign secret')->assertDontSee('8765.43');
         $this->get(route('expenses.edit', $foreign))->assertNotFound();
         Livewire::test('pages::expenses.form', ['expenseId' => $foreign->id])->assertNotFound();
         Livewire::test('pages::expenses.index')->set('showDeleted', true)->assertDontSee('Foreign deleted')->assertDontSee('Foreign template')

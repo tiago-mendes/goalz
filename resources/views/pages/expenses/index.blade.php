@@ -259,20 +259,20 @@ new #[Title('Expenses')] class extends Component {
         <flux:input wire:model="month" label="Month" type="month" min="1000-01" max="9999-12" required />
         <flux:button type="submit" wire:loading.attr="disabled">Open month</flux:button>
     </form>
-    <div class="flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:flex-row sm:flex-wrap sm:items-end">
-        <flux:input class="min-w-56 sm:flex-1" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search expenses..." type="search" />
-        <flux:select wire:model.live="category" label="Category" class="min-w-44">
+    <div class="grid gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:grid-cols-2 sm:items-end lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.1fr)_minmax(0,.85fr)_minmax(0,.8fr)_auto]">
+        <flux:input class="min-w-0" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search expenses..." type="search" />
+        <flux:select wire:model.live="category" label="Category" class="min-w-0">
             <flux:select.option value="">All categories</flux:select.option>
             @foreach ($this->categories as $categoryOption)
                 <flux:select.option value="{{ $categoryOption->id }}">{{ $categoryOption->name }}{{ $categoryOption->is_active ? '' : ' (Inactive)' }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:select wire:model.live="source" label="Source" class="min-w-36">
+        <flux:select wire:model.live="source" label="Source" class="min-w-0">
             <flux:select.option value="">All</flux:select.option>
             <flux:select.option value="manual">Manual</flux:select.option>
             <flux:select.option value="recurring">Recurring</flux:select.option>
         </flux:select>
-        <flux:select wire:model.live="paymentSource" label="Payment Source" class="min-w-44">
+        <flux:select wire:model.live="paymentSource" label="Payment Source" class="min-w-0">
             <flux:select.option value="">All payment sources</flux:select.option>
             <flux:select.option value="none">Not specified</flux:select.option>
             <flux:select.option value="account">Accounts</flux:select.option>
@@ -284,13 +284,13 @@ new #[Title('Expenses')] class extends Component {
                 <flux:select.option value="card:{{ $creditCard->id }}">Credit Card: {{ $creditCard->name }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:select wire:model.live="sort" label="Sort" class="min-w-44">
+        <flux:select wire:model.live="sort" label="Sort" class="min-w-0">
             <flux:select.option value="date">Date</flux:select.option>
             <flux:select.option value="name">Name</flux:select.option>
             <flux:select.option value="amount">Amount</flux:select.option>
             <flux:select.option value="category">Category</flux:select.option>
         </flux:select>
-        <flux:select wire:model.live="direction" label="Direction" class="min-w-32">
+        <flux:select wire:model.live="direction" label="Direction" class="min-w-0">
             <flux:select.option value="asc">Ascending</flux:select.option>
             <flux:select.option value="desc">Descending</flux:select.option>
         </flux:select>
@@ -302,7 +302,7 @@ new #[Title('Expenses')] class extends Component {
     <div class="space-y-2 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
         <flux:heading size="lg">{{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
         <flux:text>Total Expenses</flux:text>
-        <p class="break-words text-2xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->total }}</p>
+        <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->total" /></p>
     </div>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50" wire:target="openMonth">
         <table class="w-full text-left text-sm">
@@ -326,7 +326,7 @@ new #[Title('Expenses')] class extends Component {
                                 Category unavailable
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$expense->amount" /></td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $expense->expense_date->toDateString() }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$expense->fixed_expense_id === null ? 'zinc' : 'green'">{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
                         <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>
@@ -368,7 +368,7 @@ new #[Title('Expenses')] class extends Component {
                                     Category unavailable
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$expense->amount" /></td>
                             <td class="whitespace-nowrap px-4 py-3">{{ $expense->expense_date->toDateString() }}</td>
                             <td class="px-4 py-3"><flux:badge>{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
                             <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>

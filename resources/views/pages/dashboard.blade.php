@@ -231,21 +231,21 @@ new #[Title('Monthly Overview')] class extends Component {
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50" wire:target="openMonth">
         <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading level="2">Monthly Income</flux:heading>
-            <p class="break-words text-2xl font-semibold tabular-nums">{{ $this->income ? auth()->user()->currency.' '.$this->income->amount : 'Not configured' }}</p>
+            <p class="break-words text-2xl font-semibold tabular-nums">@if ($this->income)<x-money :currency="auth()->user()->currency" :amount="$this->income->amount" />@else Not configured @endif</p>
             <flux:link :href="route('monthly-income.index')" wire:navigate>Manage income</flux:link>
         </div>
         <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:heading level="2">Expenses</flux:heading>
-            <p class="break-words text-2xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->actualTotal }}</p>
+            <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->actualTotal" /></p>
             <div class="space-y-1 text-sm">
-                <p>Recurring <span class="tabular-nums">{{ auth()->user()->currency }} {{ $this->expenseBreakdown['recurring'] }}</span> · <span class="tabular-nums">{{ $this->expenseBreakdown['recurringPercentage'] }}%</span></p>
-                <p>Manual <span class="tabular-nums">{{ auth()->user()->currency }} {{ $this->expenseBreakdown['manual'] }}</span> · <span class="tabular-nums">{{ $this->expenseBreakdown['manualPercentage'] }}%</span></p>
+                <p>Recurring <span class="tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->expenseBreakdown['recurring']" /></span> · <span class="tabular-nums">{{ $this->expenseBreakdown['recurringPercentage'] }}%</span></p>
+                <p>Manual <span class="tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->expenseBreakdown['manual']" /></span> · <span class="tabular-nums">{{ $this->expenseBreakdown['manualPercentage'] }}%</span></p>
             </div>
             <flux:link :href="route('expenses.index', ['month' => $selectedMonth])" wire:navigate>Manage expenses</flux:link>
         </div>
         <div class="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-700 dark:bg-zinc-800">
             <flux:heading level="2">Remaining</flux:heading>
-            <p class="break-words text-2xl font-semibold tabular-nums">{{ $this->remaining !== null ? auth()->user()->currency.' '.$this->remaining : 'Not available' }}</p>
+            <p class="break-words text-2xl font-semibold tabular-nums">@if ($this->remaining !== null)<x-money :currency="auth()->user()->currency" :amount="$this->remaining" />@else Not available @endif</p>
             <flux:text>Income minus actual expenses.</flux:text>
         </div>
             </div>
@@ -278,7 +278,7 @@ new #[Title('Monthly Overview')] class extends Component {
                                     @endif
                                 </td>
                                 <td class="px-4 py-3"><flux:badge :color="$expense->fixed_expense_id === null ? 'zinc' : 'green'">{{ $expense->fixed_expense_id === null ? 'Manual' : 'Recurring' }}</flux:badge></td>
-                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$expense->amount" /></td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="px-4 py-8"><flux:text>No expenses recorded for this month.</flux:text></td></tr>
@@ -291,7 +291,7 @@ new #[Title('Monthly Overview')] class extends Component {
 
     <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="budget-overview-heading">
         <div class="flex flex-wrap items-center justify-between gap-3"><div><flux:heading size="lg" level="2" id="budget-overview-heading">Budget Overview</flux:heading><flux:text>Budget usage for the selected month.</flux:text></div><div class="flex items-center gap-2"><flux:link :href="route('reports.budgets', ['month' => $selectedMonth])" wire:navigate>View budget report</flux:link><flux:link :href="route('budgets.index')" wire:navigate>Manage budgets</flux:link><button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Budget Overview' : 'Expand Budget Overview'" aria-controls="budget-overview-content" @click="isOpen = !isOpen"><flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" /><flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" /><span class="sr-only" x-text="isOpen ? 'Collapse Budget Overview' : 'Expand Budget Overview'"></span></button></div></div>
-        <div id="budget-overview-content" x-show="isOpen" class="space-y-4"><div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">@foreach ([['Total Budget', 'totalBudget'], ['Budgeted Spending', 'budgetedSpending'], ['Remaining', 'remaining'], ['Overall Usage', 'overallUsage']] as [$label, $key])<div class="space-y-1 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"><flux:text>{{ $label }}</flux:text><p class="font-semibold tabular-nums">{{ $key === 'overallUsage' ? $this->budgetOverview[$key].'%' : auth()->user()->currency.' '.$this->budgetOverview[$key] }}</p></div>@endforeach</div>@if ($this->budgetOverview['rows'] === [])<flux:text>No budgets for this month.</flux:text>@else<ul class="space-y-2">@foreach (array_filter($this->budgetOverview['rows'], fn (array $row): bool => $row['status'] === 'Over budget') as $row)<li class="flex flex-wrap justify-between gap-2 text-sm"><span>{{ $row['category']->name }}</span><span class="tabular-nums text-red-600 dark:text-red-400">{{ $row['usage'] }}% · {{ auth()->user()->currency }} {{ $row['overBudget'] }} over budget</span></li>@endforeach</ul>@endif</div>
+        <div id="budget-overview-content" x-show="isOpen" class="space-y-4"><div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">@foreach ([['Total Budget', 'totalBudget'], ['Budgeted Spending', 'budgetedSpending'], ['Remaining', 'remaining'], ['Overall Usage', 'overallUsage']] as [$label, $key])<div class="space-y-1 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"><flux:text>{{ $label }}</flux:text><p class="font-semibold tabular-nums">@if ($key === 'overallUsage'){{ $this->budgetOverview[$key] }}%@else<x-money :currency="auth()->user()->currency" :amount="$this->budgetOverview[$key]" />@endif</p></div>@endforeach</div>@if ($this->budgetOverview['rows'] === [])<flux:text>No budgets for this month.</flux:text>@else<ul class="space-y-2">@foreach (array_filter($this->budgetOverview['rows'], fn (array $row): bool => $row['status'] === 'Over budget') as $row)<li class="flex flex-wrap justify-between gap-2 text-sm"><span>{{ $row['category']->name }}</span><span class="tabular-nums text-red-600 dark:text-red-400">{{ $row['usage'] }}% · <x-money :currency="auth()->user()->currency" :amount="$row['overBudget']" /> over budget</span></li>@endforeach</ul>@endif</div>
     </section>
 
     <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="goals-heading">
@@ -322,9 +322,9 @@ new #[Title('Monthly Overview')] class extends Component {
                         @forelse ($this->goals as $goal)
                             <tr wire:key="dashboard-goal-{{ $goal->id }}">
                                 <td class="px-4 py-3 font-medium"><span class="inline-flex flex-wrap items-center gap-2">{{ $goal->name }} @if (! $goal->isOwnedBy(auth()->user()))<flux:badge color="blue">Shared</flux:badge><span class="text-xs font-normal text-zinc-600 dark:text-zinc-400">Owner: {{ $goal->owner->name }}</span>@endif</span></td>
-                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->target_amount }}</td>
-                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->allocatedAmount() }}</td>
-                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ BigDecimal::of($goal->remainingAmount())->isNegative() ? 'Overfunded · '.auth()->user()->currency.' '.$goal->overfundedAmount() : auth()->user()->currency.' '.$goal->remainingAmount() }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$goal->target_amount" /></td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$goal->allocatedAmount()" /></td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">@if (BigDecimal::of($goal->remainingAmount())->isNegative())Overfunded · <x-money :currency="auth()->user()->currency" :amount="$goal->overfundedAmount()" />@else<x-money :currency="auth()->user()->currency" :amount="$goal->remainingAmount()" />@endif</td>
                                 <td class="min-w-40 px-4 py-3">
                                     <div class="flex items-center gap-2">
                                         <div class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full {{ GoalProgressColor::classes($goal->progressPercentage()) }}" style="width: {{ $goal->visualProgressPercentage() }}%"></div></div>
@@ -362,23 +362,23 @@ new #[Title('Monthly Overview')] class extends Component {
             <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:heading level="3">Total Assets</flux:heading>
                 <flux:text>Active accounts</flux:text>
-                <p class="break-words text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->financialPosition['totalAssets'] }}</p>
+                <p class="break-words text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->financialPosition['totalAssets']" /></p>
             </div>
             <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:heading level="3">Allocated Assets</flux:heading>
                 <flux:text>Designated to goals</flux:text>
-                <p class="break-words text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->financialPosition['allocatedAssets'] }}</p>
+                <p class="break-words text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->financialPosition['allocatedAssets']" /></p>
             </div>
             <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <flux:heading level="3">Free Assets</flux:heading>
                 <flux:text>Available in active accounts</flux:text>
-                <p class="break-words text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->financialPosition['freeAssets'] }}</p>
+                <p class="break-words text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->financialPosition['freeAssets']" /></p>
             </div>
         </div>
         @if ($this->financialPosition['overallocatedCount'] > 0)
             <flux:callout variant="warning">
                 Allocation warning: {{ $this->financialPosition['overallocatedCount'] === 1 ? '1 account has' : $this->financialPosition['overallocatedCount'].' accounts have' }} allocations above its current balance.
-                Overallocated by {{ auth()->user()->currency }} {{ $this->financialPosition['overallocatedTotal'] }}.
+                Overallocated by <x-money :currency="auth()->user()->currency" :amount="$this->financialPosition['overallocatedTotal']" />.
                 <flux:link :href="route('accounts.index')" wire:navigate>Review allocations</flux:link>
             </flux:callout>
         @endif
@@ -415,7 +415,7 @@ new #[Title('Monthly Overview')] class extends Component {
                             <td class="px-4 py-3 font-medium">{{ $card->name }}</td>
                             <td class="whitespace-nowrap px-4 py-3">{{ $bill->cycle->start->format('M j') }} – {{ $bill->cycle->end->format('M j') }}</td>
                             <td class="whitespace-nowrap px-4 py-3">{{ $bill->cycle->dueDate->format('M j, Y') }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $bill->total }}</td>
+                            <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$bill->total" /></td>
                             <td class="px-4 py-3"><flux:button size="sm" :href="route('credit-cards.show', ['creditCardId' => $card->id, 'month' => $selectedMonth])" wire:navigate>View bill</flux:button></td>
                         </tr>
                     @empty

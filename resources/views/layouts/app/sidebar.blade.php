@@ -15,7 +15,7 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="chart-bar" :href="route('reports.cash-flow')" :current="request()->routeIs('reports.*')" wire:navigate>Reports</flux:sidebar.item>
+                    <flux:sidebar.item icon="chart-bar" :href="route('reports.goals')" :current="request()->routeIs('reports.*')" wire:navigate>Reports</flux:sidebar.item>
                     <flux:sidebar.item icon="tag" :href="route('expense-categories.index')" :current="request()->routeIs('expense-categories.*')" wire:navigate>Categories</flux:sidebar.item>
                     <flux:sidebar.item icon="chart-pie" :href="route('budgets.index')" :current="request()->routeIs('budgets.*')" wire:navigate>Budgets</flux:sidebar.item>
                     <flux:sidebar.item icon="banknotes" :href="route('monthly-income.index')" :current="request()->routeIs('monthly-income.*')" wire:navigate>Income</flux:sidebar.item>

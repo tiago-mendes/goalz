@@ -125,7 +125,7 @@ new #[Title('Credit card bill')] class extends Component {
         <dl class="grid gap-2 sm:grid-cols-[auto_1fr] sm:gap-x-6">
             <dt>Cycle</dt><dd>{{ $this->bill->cycle->start->toDateString() }} – {{ $this->bill->cycle->end->toDateString() }}</dd>
             <dt>Due</dt><dd>{{ $this->bill->cycle->dueDate->toDateString() }}</dd>
-            <dt>Total</dt><dd class="break-words text-2xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->bill->total }}</dd>
+            <dt>Total</dt><dd class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->bill->total" /></dd>
         </dl>
     </div>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
@@ -152,7 +152,7 @@ new #[Title('Credit card bill')] class extends Component {
                                 Category unavailable
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$expense->amount" /></td>
                     </tr>
                 @empty
                     <tr><td colspan="4" class="px-4 py-6"><flux:text>No expenses in this billing cycle.</flux:text></td></tr>

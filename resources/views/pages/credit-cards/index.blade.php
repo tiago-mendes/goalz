@@ -102,7 +102,7 @@ new #[Title('Credit Cards')] class extends Component {
                         <td class="px-4 py-3">{{ $creditCard->name }}</td>
                         <td class="px-4 py-3">Day {{ $creditCard->cycle_start_day }}</td>
                         <td class="px-4 py-3">Day {{ $creditCard->due_day }}</td>
-                        <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $bill->total }}</td>
+                        <td class="whitespace-nowrap px-4 py-3 tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$bill->total" /></td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $bill->cycle->dueDate->toDateString() }}</td>
                         <td class="px-4 py-3"><flux:badge :color="$creditCard->is_active ? 'green' : 'zinc'">{{ $creditCard->is_active ? 'Active' : 'Inactive' }}</flux:badge></td>
                         <td class="px-4 py-3"><div class="flex flex-wrap gap-2">

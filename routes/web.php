@@ -13,6 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('fixed-expenses/{fixedExpenseId}/edit', 'pages::fixed-expenses.form')->whereNumber('fixedExpenseId')->name('fixed-expenses.edit');
     Route::livewire('monthly-income', 'pages::monthly-income.index')->name('monthly-income.index');
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
+    Route::redirect('reports', '/reports/goals')->name('reports.index');
     Route::livewire('reports/cash-flow', 'pages::reports.cash-flow')->name('reports.cash-flow');
     Route::livewire('reports/assets', 'pages::reports.assets')->name('reports.assets');
     Route::livewire('reports/goals', 'pages::reports.goals')->name('reports.goals');

@@ -38,6 +38,30 @@ new #[Title('Accounts')] class extends Component {
         return (string) $total->toScale(2);
     }
 
+    #[Computed]
+    public function totalAllocated(): string
+    {
+        $total = BigDecimal::of('0.00');
+
+        foreach ($this->accounts->where('is_active', true) as $account) {
+            $total = $total->plus($account->allocatedAmount());
+        }
+
+        return (string) $total->toScale(2);
+    }
+
+    #[Computed]
+    public function totalAvailable(): string
+    {
+        $total = BigDecimal::of('0.00');
+
+        foreach ($this->accounts->where('is_active', true) as $account) {
+            $total = $total->plus($account->availableAmount());
+        }
+
+        return (string) $total->toScale(2);
+    }
+
     public function setActive(int $accountId, bool $active): void
     {
         $account = auth()->user()->accounts()->find($accountId);
@@ -45,7 +69,7 @@ new #[Title('Accounts')] class extends Component {
         Gate::authorize('update', $account);
         $account->is_active = $active;
         $account->save();
-        unset($this->accounts, $this->totalAssets);
+        unset($this->accounts, $this->totalAssets, $this->totalAllocated, $this->totalAvailable);
         session()->flash('status', $active ? 'Account activated.' : 'Account deactivated.');
     }
 }; ?>
@@ -58,10 +82,14 @@ new #[Title('Accounts')] class extends Component {
     @if (session('status'))
         <flux:callout>{{ session('status') }}</flux:callout>
     @endif
-    <div class="space-y-2 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
-        <flux:heading size="lg">Total Assets</flux:heading>
-        <flux:text>Across your active accounts.</flux:text>
-        <p class="break-words text-2xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->totalAssets }}</p>
+    <div class="grid gap-4 md:grid-cols-3">
+        @foreach ([['label' => 'Total Assets', 'description' => 'Across your active accounts', 'value' => $this->totalAssets], ['label' => 'Total Allocated', 'description' => 'Designated to goals', 'value' => $this->totalAllocated], ['label' => 'Total Available', 'description' => 'Available in active accounts', 'value' => $this->totalAvailable]] as $card)
+            <div class="space-y-2 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
+                <flux:heading size="lg">{{ $card['label'] }}</flux:heading>
+                <flux:text>{{ $card['description'] }}</flux:text>
+                <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$card['value']" /></p>
+            </div>
+        @endforeach
     </div>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
         <table class="w-full text-left text-sm">
@@ -78,12 +106,12 @@ new #[Title('Accounts')] class extends Component {
                         <td class="px-4 py-3">{{ $account->type->label() }}</td>
                         <td class="px-4 py-3">
                             <dl class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 tabular-nums">
-                                <dt>Current Balance</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->current_balance }}</dd>
-                                <dt>Allocated</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->allocatedAmount() }}</dd>
+                                <dt>Current Balance</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->current_balance" /></dd>
+                                <dt>Allocated</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->allocatedAmount()" /></dd>
                                 @if (BigDecimal::of($account->availableAmount())->isNegative())
-                                    <dt class="font-medium text-red-600 dark:text-red-400">Overallocated</dt><dd class="text-right font-medium text-red-600 dark:text-red-400">{{ auth()->user()->currency }} {{ $account->overallocatedAmount() }}</dd>
+                                    <dt class="font-medium text-red-600 dark:text-red-400">Overallocated</dt><dd class="text-right font-medium text-red-600 dark:text-red-400"><x-money :currency="auth()->user()->currency" :amount="$account->overallocatedAmount()" /></dd>
                                 @else
-                                    <dt>Available</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->availableAmount() }}</dd>
+                                    <dt>Available</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->availableAmount()" /></dd>
                                 @endif
                             </dl>
                         </td>

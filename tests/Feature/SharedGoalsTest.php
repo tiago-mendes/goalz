@@ -295,7 +295,7 @@ class SharedGoalsTest extends TestCase
 
         $page = Livewire::test('pages::goals.index');
 
-        $page->assertSeeText(['Shared Visual Goal', 'Shared Goal Owner', 'Owner', 'Target Date', 'Jun 30, 2027', 'BRL 50.00 / 200.00', '25.0%'])
+        $page->assertSeeText(['Shared Visual Goal', 'Shared Goal Owner', 'Owner', 'Target Date', 'Jun 30, 2027', 'R$ 50.00', 'R$ 200.00', '25.0%'])
             ->assertSee('role="progressbar" aria-label="Shared Visual Goal funding progress"', escape: false)
             ->assertSee('aria-valuenow="25.0"', escape: false)
             ->assertSee('bg-orange-500', escape: false);

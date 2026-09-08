@@ -2,6 +2,7 @@
 
 use App\Models\FixedExpense;
 use App\Models\ExpenseCategory;
+use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -98,6 +99,18 @@ new #[Title('Fixed Expenses')] class extends Component {
     }
 
     #[Computed]
+    public function activeFixedExpensesTotal(): string
+    {
+        $total = BigDecimal::of('0.00');
+
+        foreach (auth()->user()->fixedExpenses()->where('is_active', true)->get(['amount']) as $fixedExpense) {
+            $total = $total->plus($fixedExpense->amount);
+        }
+
+        return (string) $total->toScale(2);
+    }
+
+    #[Computed]
     public function categories(): Collection
     {
         return auth()->user()->expenseCategories()->orderBy('name')->orderBy('id')->get();
@@ -173,7 +186,7 @@ new #[Title('Fixed Expenses')] class extends Component {
         Gate::authorize('update', $expense);
         $expense->is_active = $active;
         $expense->save();
-        unset($this->fixedExpenses);
+        unset($this->activeFixedExpensesTotal, $this->fixedExpenses);
         session()->flash('status', $active ? 'Fixed expense activated.' : 'Fixed expense deactivated.');
     }
 }; ?>
@@ -186,20 +199,21 @@ new #[Title('Fixed Expenses')] class extends Component {
     @if (session('status'))
         <flux:callout>{{ session('status') }}</flux:callout>
     @endif
-    <div class="flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:flex-row sm:flex-wrap sm:items-end">
-        <flux:input class="min-w-56 sm:flex-1" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search fixed expenses..." type="search" />
-        <flux:select wire:model.live="category" label="Category" class="min-w-44">
+    <div class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <div class="grid gap-3 sm:grid-cols-2 sm:items-end lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.1fr)_minmax(0,.85fr)_minmax(0,.8fr)_auto]">
+        <flux:input class="min-w-0" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search fixed expenses..." type="search" />
+        <flux:select wire:model.live="category" label="Category" class="min-w-0">
             <flux:select.option value="">All categories</flux:select.option>
             @foreach ($this->categories as $categoryOption)
                 <flux:select.option value="{{ $categoryOption->id }}">{{ $categoryOption->name }}{{ $categoryOption->is_active ? '' : ' (Inactive)' }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:select wire:model.live="status" label="Status" class="min-w-36">
+        <flux:select wire:model.live="status" label="Status" class="min-w-0">
             <flux:select.option value="">All</flux:select.option>
             <flux:select.option value="active">Active</flux:select.option>
             <flux:select.option value="inactive">Inactive</flux:select.option>
         </flux:select>
-        <flux:select wire:model.live="paymentSource" label="Payment Source" class="min-w-44">
+        <flux:select wire:model.live="paymentSource" label="Payment Source" class="min-w-0">
             <flux:select.option value="">All payment sources</flux:select.option>
             <flux:select.option value="none">Not specified</flux:select.option>
             <flux:select.option value="account">Accounts</flux:select.option>
@@ -211,7 +225,7 @@ new #[Title('Fixed Expenses')] class extends Component {
                 <flux:select.option value="card:{{ $creditCard->id }}">Credit Card: {{ $creditCard->name }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:select wire:model.live="sort" label="Sort" class="min-w-44">
+        <flux:select wire:model.live="sort" label="Sort" class="min-w-0">
             <flux:select.option value="name">Name</flux:select.option>
             <flux:select.option value="amount">Amount</flux:select.option>
             <flux:select.option value="day">Day</flux:select.option>
@@ -219,13 +233,19 @@ new #[Title('Fixed Expenses')] class extends Component {
             <flux:select.option value="category">Category</flux:select.option>
             <flux:select.option value="status">Status</flux:select.option>
         </flux:select>
-        <flux:select wire:model.live="direction" label="Direction" class="min-w-32">
+        <flux:select wire:model.live="direction" label="Direction" class="min-w-0">
             <flux:select.option value="asc">Ascending</flux:select.option>
             <flux:select.option value="desc">Descending</flux:select.option>
         </flux:select>
         @if ($this->hasActiveFilters())
             <flux:button wire:click="clearFilters">Clear filters</flux:button>
         @endif
+        </div>
+    </div>
+    <div class="space-y-1 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <flux:heading size="lg">Total Fixed Expenses</flux:heading>
+        <p class="text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->activeFixedExpensesTotal" /></p>
+        <flux:text class="text-sm">Active recurring templates</flux:text>
     </div>
     <flux:text>{{ $this->fixedExpenses->total() }} {{ $this->fixedExpenses->total() === 1 ? 'fixed expense' : 'fixed expenses' }}</flux:text>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
@@ -257,7 +277,7 @@ new #[Title('Fixed Expenses')] class extends Component {
                                 Category unavailable
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-4 py-3">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
+                        <td class="whitespace-nowrap px-4 py-3"><x-money :currency="auth()->user()->currency" :amount="$expense->amount" /></td>
                         <td class="px-4 py-3">{{ $expense->day_of_month }}</td>
                         <td class="whitespace-nowrap px-4 py-3">{{ $expense->start_date->toDateString() }}</td>
                         <td class="px-4 py-3">{{ $expense->paymentSourceName() }}</td>

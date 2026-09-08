@@ -173,7 +173,7 @@ class GoalsTest extends TestCase
 
         $page = Livewire::test('pages::goals.index');
 
-        $page->assertSeeText('BRL 125.25 / 400.00 · 31.3%')
+        $page->assertSeeText(['R$ 125.25', 'R$ 400.00', '31.3%'])
             ->assertSee('aria-label="Total funding progress"', escape: false)
             ->assertSee('aria-valuenow="31.3"', escape: false)
             ->assertSee('bg-yellow-400', escape: false);
@@ -187,7 +187,7 @@ class GoalsTest extends TestCase
         $this->actingAs($user = User::factory()->create(['currency' => 'BRL']));
 
         $this->get(route('goals.index'))->assertSeeText('Active Goals')->assertSeeText('Total Target')
-            ->assertSeeText('BRL 0.00')->assertSeeText('No goals yet. Create your first goal to start planning what comes next.')
+            ->assertSeeText('R$ 0.00')->assertSeeText('No goals yet. Create your first goal to start planning what comes next.')
             ->assertDontSeeText('Delete');
         Livewire::test('pages::goals.index')->assertSet('activeGoals', 0)->assertSet('totalTarget', '0.00');
     }
