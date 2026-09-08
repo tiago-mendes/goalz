@@ -61,7 +61,7 @@ class DashboardTest extends TestCase
             ->assertSee('Collapse Credit Card', false)->assertSee('Expand Credit Card', false)
             ->assertDontSeeText('Collapse')->assertDontSeeText('Expand');
 
-        $this->assertSame(4, substr_count($content, 'x-data="{ isOpen: true }"'));
+        $this->assertSame(5, substr_count($content, 'x-data="{ isOpen: true }"'));
     }
 
     #[TestWith(['user'])]

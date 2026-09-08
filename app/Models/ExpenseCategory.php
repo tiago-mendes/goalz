@@ -65,4 +65,10 @@ class ExpenseCategory extends Model
     {
         return $this->hasMany(Expense::class);
     }
+
+    /** @return HasMany<BudgetRule, $this> */
+    public function budgetRules(): HasMany
+    {
+        return $this->hasMany(BudgetRule::class);
+    }
 }
