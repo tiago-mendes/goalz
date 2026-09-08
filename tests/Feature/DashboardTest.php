@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
+use App\Models\CreditCard;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
+use App\Models\Goal;
+use App\Models\GoalAccountAllocation;
 use App\Models\MonthlyIncome;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -33,6 +37,31 @@ class DashboardTest extends TestCase
         $response = $this->get(route('dashboard'));
         $response->assertOk()->assertSeeText('Monthly Income')->assertSeeText('Expenses')->assertSeeText('Remaining')
             ->assertDontSee('Planned Fixed Expenses')->assertDontSee('Actual Expenses');
+    }
+
+    public function test_dashboard_sections_are_independently_collapsible_and_default_to_expanded(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 7));
+        $this->actingAs(User::factory()->create());
+
+        $response = $this->get(route('dashboard'));
+        $content = $response->getContent();
+
+        $response->assertOk()->assertSeeText('September 2026')->assertSeeText('Monthly overview')
+            ->assertDontSee('>Monthly Overview<', false)->assertDontSeeText('Your income and expenses.')
+            ->assertSeeInOrder(['Month Info', 'Goals', 'Current Financial Position', 'Credit Card'])
+            ->assertSee('x-bind:aria-expanded="isOpen"', false)
+            ->assertSee('aria-controls="month-info-content"', false)
+            ->assertSee('aria-controls="goals-content"', false)
+            ->assertSee('aria-controls="financial-position-content"', false)
+            ->assertSee('aria-controls="credit-card-content"', false)
+            ->assertSee('Collapse Month Info', false)->assertSee('Expand Month Info', false)
+            ->assertSee('Collapse Goals', false)->assertSee('Expand Goals', false)
+            ->assertSee('Collapse Current Financial Position', false)->assertSee('Expand Current Financial Position', false)
+            ->assertSee('Collapse Credit Card', false)->assertSee('Expand Credit Card', false)
+            ->assertDontSeeText('Collapse')->assertDontSeeText('Expand');
+
+        $this->assertSame(4, substr_count($content, 'x-data="{ isOpen: true }"'));
     }
 
     #[TestWith(['user'])]
@@ -272,5 +301,69 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         Livewire::test('pages::dashboard')->assertSeeText(['Recurring', '0.00', '0%', 'Manual', '10.00', '100.0%']);
+    }
+
+    public function test_dashboard_shows_current_financial_position_and_goal_state_without_foreign_data(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $other = User::factory()->create();
+        $account = Account::factory()->for($user)->create(['current_balance' => '1000.10']);
+        Account::factory()->for($user)->inactive()->create(['current_balance' => '500.00']);
+        $goal = Goal::factory()->for($user)->create(['name' => 'Emergency Fund', 'target_amount' => '2000.00']);
+        GoalAccountAllocation::factory()->for($goal)->for($account)->create(['amount' => '250.05']);
+        Goal::factory()->for($other)->create(['name' => 'Private Goal', 'target_amount' => '9999.99']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')
+            ->assertSet('financialPosition.totalAssets', '1000.10')
+            ->assertSet('financialPosition.allocatedAssets', '250.05')
+            ->assertSet('financialPosition.freeAssets', '750.05')
+            ->assertSeeText(['Current Financial Position', 'BRL 1000.10', 'BRL 250.05', 'BRL 750.05', 'Emergency Fund', '12.5%', 'Active'])
+            ->assertDontSeeText('Private Goal');
+    }
+
+    public function test_dashboard_warns_for_overallocated_active_accounts_without_mutating_allocations(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $account = Account::factory()->for($user)->create(['current_balance' => '200.00']);
+        $otherAccount = Account::factory()->for($user)->create(['current_balance' => '300.00']);
+        $goal = Goal::factory()->for($user)->create(['target_amount' => '1000.00']);
+        GoalAccountAllocation::factory()->for($goal)->for($account)->create(['amount' => '260.00']);
+        GoalAccountAllocation::factory()->for($goal)->for($otherAccount)->create(['amount' => '100.00']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::dashboard')
+            ->assertSet('financialPosition.overallocatedCount', 1)
+            ->assertSet('financialPosition.overallocatedTotal', '60.00')
+            ->assertSeeText(['Allocation warning', '1 account has', 'BRL 60.00', 'Review allocations']);
+
+        $this->assertSame('260.00', $account->goalAccountAllocations()->sole()->amount);
+        $this->assertSame('200.00', $account->refresh()->current_balance);
+    }
+
+    public function test_dashboard_bills_follow_selected_due_month_and_do_not_change_remaining_or_current_assets(): void
+    {
+        $this->travelTo('2026-09-07 12:00:00');
+        $user = User::factory()->create(['currency' => 'BRL', 'default_monthly_income' => '1000.00']);
+        $account = Account::factory()->for($user)->create(['current_balance' => '2000.00']);
+        $card = CreditCard::factory()->for($user)->create(['name' => 'Nubank Mastercard', 'cycle_start_day' => 13, 'due_day' => 20]);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-10', 'amount' => '500.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-13', 'amount' => '125.00']);
+        $this->actingAs($user);
+
+        $page = Livewire::test('pages::dashboard')->set('month', '2026-09')->call('openMonth')
+            ->assertSet('actualTotal', '625.00')
+            ->assertSet('remaining', '375.00')
+            ->assertSet('financialPosition.totalAssets', '2000.00')
+            ->assertSeeText(['Nubank Mastercard', 'Aug 13 – Sep 12', 'Sep 20, 2026', 'BRL 500.00']);
+
+        $page->set('month', '2026-10')->call('openMonth')
+            ->assertSet('actualTotal', '0.00')
+            ->assertSet('remaining', '1000.00')
+            ->assertSet('financialPosition.totalAssets', '2000.00')
+            ->assertSeeText(['Sep 13 – Oct 12', 'Oct 20, 2026', 'BRL 125.00'])
+            ->assertDontSeeText('Aug 13 – Sep 12');
+
+        $this->assertSame('2000.00', $account->refresh()->current_balance);
     }
 }
