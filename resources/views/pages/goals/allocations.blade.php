@@ -1,9 +1,14 @@
 <?php
 
 use App\Actions\SaveGoalAccountAllocation;
+use App\Actions\EndGoalMembership;
+use App\Actions\InviteGoalMember;
+use App\GoalMembershipStatus;
 use App\Models\Account;
 use App\Models\Goal;
 use App\Models\GoalAccountAllocation;
+use App\Models\GoalMembership;
+use App\Models\User;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\NumberFormatException;
 use Brick\Math\RoundingMode;
@@ -30,27 +35,73 @@ new #[Title('Goal allocations')] class extends Component {
 
     public bool $showEditor = false;
 
+    public string $inviteEmail = '';
+
     public function mount(int $goalId): void
     {
         $this->goalId = $goalId;
-        Gate::authorize('view', $this->ownedGoal());
+        Gate::authorize('view', $this->accessibleGoal());
     }
 
     #[Computed]
     public function goal(): Goal
     {
-        return $this->ownedGoal()->load('goalAccountAllocations');
+        return $this->accessibleGoal()->load([
+            'goalAccountAllocations:id,goal_id,amount',
+            'owner:id,name',
+        ]);
     }
 
     /** @return Collection<int, GoalAccountAllocation> */
     #[Computed]
     public function allocations(): Collection
     {
-        return $this->ownedGoal()->goalAccountAllocations()
+        return $this->accessibleGoal()->goalAccountAllocations()
             ->whereHas('account', fn ($query) => $query->where('user_id', auth()->id()))
             ->with(['account.goalAccountAllocations'])
             ->orderBy('id')
             ->get();
+    }
+
+    /** @return list<array{userId: int, name: string, amount: string, isOwner: bool}> */
+    #[Computed]
+    public function contributions(): array
+    {
+        $goal = $this->accessibleGoal();
+        $memberIds = $goal->memberships()
+            ->where('status', GoalMembershipStatus::Accepted)
+            ->pluck('user_id');
+        $participantIds = $memberIds->prepend($goal->user_id)->unique()->values();
+        $totals = GoalAccountAllocation::query()
+            ->join('accounts', 'accounts.id', '=', 'goal_account_allocations.account_id')
+            ->where('goal_account_allocations.goal_id', $goal->id)
+            ->whereIn('accounts.user_id', $participantIds)
+            ->selectRaw('accounts.user_id, CAST(SUM(goal_account_allocations.amount) AS CHAR) as contribution_total')
+            ->groupBy('accounts.user_id')
+            ->pluck('contribution_total', 'accounts.user_id');
+
+        return User::query()->whereIn('id', $participantIds)->get(['id', 'name'])
+            ->sortBy(fn (User $user): array => [$user->id === $goal->user_id ? 0 : 1, mb_strtolower($user->name), $user->id])
+            ->map(fn (User $user): array => [
+                'userId' => $user->id,
+                'name' => $user->name,
+                'amount' => (string) BigDecimal::of($totals->get($user->id, '0.00'))->toScale(2),
+                'isOwner' => $user->id === $goal->user_id,
+            ])->values()->all();
+    }
+
+    /** @return Collection<int, GoalMembership> */
+    #[Computed]
+    public function memberships(): Collection
+    {
+        if (! $this->accessibleGoal()->isOwnedBy(auth()->user())) {
+            return new Collection;
+        }
+
+        return $this->accessibleGoal()->memberships()
+            ->whereIn('status', [GoalMembershipStatus::Pending, GoalMembershipStatus::Accepted])
+            ->with('user:id,name')
+            ->orderBy('status')->orderBy('id')->get();
     }
 
     /** @return Collection<int, Account> */
@@ -149,6 +200,35 @@ new #[Title('Goal allocations')] class extends Component {
         $this->afterWrite('Allocation saved.');
     }
 
+    public function invite(InviteGoalMember $invite): void
+    {
+        Gate::authorize('invite', $this->accessibleGoal());
+        $this->inviteEmail = trim($this->inviteEmail);
+        $this->validate(['inviteEmail' => ['required', 'email:rfc', 'max:255']]);
+        $invite->handle(auth()->user(), $this->goalId, $this->inviteEmail);
+        $this->inviteEmail = '';
+        unset($this->memberships, $this->contributions);
+        session()->flash('status', 'Invitation sent.');
+    }
+
+    public function removeMember(int $memberUserId, EndGoalMembership $endMembership): void
+    {
+        $goal = $this->accessibleGoal();
+        Gate::authorize('removeMember', $goal);
+        $endMembership->handle(auth()->user(), $goal->id, $memberUserId);
+        unset($this->goal, $this->memberships, $this->contributions);
+        session()->flash('status', 'Member removed.');
+    }
+
+    public function leaveGoal(EndGoalMembership $endMembership): void
+    {
+        $goal = $this->accessibleGoal();
+        Gate::authorize('leave', $goal);
+        $endMembership->handle(auth()->user(), $goal->id, auth()->id());
+        session()->flash('status', 'You left the shared goal.');
+        $this->redirectRoute('goals.index', navigate: true);
+    }
+
     public function removeAllocation(int $allocationId): void
     {
         $allocation = $this->ownedAllocation($allocationId);
@@ -156,7 +236,7 @@ new #[Title('Goal allocations')] class extends Component {
         DB::transaction(function () use ($allocation): void {
             $account = Account::query()->whereKey($allocation->account_id)->whereBelongsTo(auth()->user())->lockForUpdate()->first();
             abort_if($account === null, 404);
-            $goal = Goal::query()->whereKey($this->goalId)->whereBelongsTo(auth()->user())->lockForUpdate()->first();
+            $goal = Goal::query()->whereKey($this->goalId)->accessibleTo(auth()->user())->lockForUpdate()->first();
             abort_if($goal === null, 404);
             $lockedAllocation = GoalAccountAllocation::query()->whereKey($allocation->id)
                 ->whereBelongsTo($goal)->whereBelongsTo($account)->lockForUpdate()->first();
@@ -205,9 +285,9 @@ new #[Title('Goal allocations')] class extends Component {
         return $this->percentageFor($this->maximumAmount, $account->current_balance);
     }
 
-    private function ownedGoal(): Goal
+    private function accessibleGoal(): Goal
     {
-        $goal = auth()->user()->goals()->find($this->goalId);
+        $goal = Goal::query()->accessibleTo(auth()->user())->find($this->goalId);
         abort_if($goal === null, 404);
 
         return $goal;
@@ -215,7 +295,7 @@ new #[Title('Goal allocations')] class extends Component {
 
     private function ownedAllocation(int $allocationId): GoalAccountAllocation
     {
-        $allocation = $this->ownedGoal()->goalAccountAllocations()
+        $allocation = $this->accessibleGoal()->goalAccountAllocations()
             ->whereKey($allocationId)
             ->whereHas('account', fn ($query) => $query->where('user_id', auth()->id()))
             ->with('account')
@@ -260,7 +340,7 @@ new #[Title('Goal allocations')] class extends Component {
     {
         $total = BigDecimal::of('0.00');
 
-        foreach ($this->allocations as $allocation) {
+        foreach ($this->goal->goalAccountAllocations as $allocation) {
             if ($allocation->id !== $this->allocationId) {
                 $total = $total->plus($allocation->amount);
             }
@@ -273,7 +353,7 @@ new #[Title('Goal allocations')] class extends Component {
     {
         $this->resetEditor();
         $this->showEditor = false;
-        unset($this->goal, $this->allocations, $this->eligibleAccounts, $this->maximumAmount, $this->maximumPercentage);
+        unset($this->goal, $this->allocations, $this->eligibleAccounts, $this->contributions, $this->maximumAmount, $this->maximumPercentage);
         session()->flash('status', $message);
     }
 
@@ -292,12 +372,21 @@ new #[Title('Goal allocations')] class extends Component {
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="space-y-2">
             <flux:button :href="route('goals.index')" wire:navigate>Back to goals</flux:button>
-            <flux:heading size="xl" level="1">{{ $this->goal->name }}</flux:heading>
+            <div class="flex flex-wrap items-center gap-2">
+                <flux:heading size="xl" level="1">{{ $this->goal->name }}</flux:heading>
+                <flux:badge :color="$this->goal->isOwnedBy(auth()->user()) ? 'green' : 'blue'">{{ $this->goal->isOwnedBy(auth()->user()) ? 'Owner' : 'Shared' }}</flux:badge>
+            </div>
+            <flux:text>Owned by {{ $this->goal->owner->name }}</flux:text>
             <flux:text>Designate funds from your accounts. Account balances never change here.</flux:text>
         </div>
-        @if ($this->eligibleAccounts->isNotEmpty())
-            <flux:button variant="primary" wire:click="startAdd">Add allocation</flux:button>
-        @endif
+        <div class="flex flex-wrap gap-2">
+            @if ($this->eligibleAccounts->isNotEmpty())
+                <flux:button variant="primary" wire:click="startAdd">Add allocation</flux:button>
+            @endif
+            @if (! $this->goal->isOwnedBy(auth()->user()))
+                <flux:button variant="danger" wire:click="leaveGoal" wire:confirm="Leaving this shared goal will remove your current allocations from it." wire:loading.attr="disabled">Leave goal</flux:button>
+            @endif
+        </div>
     </div>
 
     @if (session('status'))
@@ -318,8 +407,33 @@ new #[Title('Goal allocations')] class extends Component {
         <flux:callout>The goal is overfunded by {{ auth()->user()->currency }} {{ $this->goal->overfundedAmount() }}. Existing allocations are preserved; reduce or remove them if desired.</flux:callout>
     @endif
 
+    <section class="space-y-4" aria-labelledby="goal-members-heading">
+        <flux:heading size="lg" level="2" id="goal-members-heading">Members</flux:heading>
+        <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
+            <table class="w-full text-left text-sm"><caption class="sr-only">Goal member contribution totals</caption><thead class="bg-zinc-50 dark:bg-zinc-900"><tr><th scope="col" class="px-4 py-3">Member</th><th scope="col" class="px-4 py-3 text-right">Contribution</th>@if ($this->goal->isOwnedBy(auth()->user()))<th scope="col" class="px-4 py-3">Actions</th>@endif</tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                @foreach ($this->contributions as $contribution)
+                    <tr wire:key="goal-contribution-{{ $contribution['userId'] }}"><th scope="row" class="px-4 py-3 font-normal"><span class="inline-flex items-center gap-2">{{ $contribution['name'] }} @if ($contribution['isOwner'])<flux:badge color="green">Owner</flux:badge>@endif</span></th><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $contribution['amount'] }}</td>@if ($this->goal->isOwnedBy(auth()->user()))<td class="px-4 py-3">@if (! $contribution['isOwner'])<flux:button size="sm" variant="danger" wire:click="removeMember({{ $contribution['userId'] }})" wire:confirm="Removing this member will also remove their current allocations from this goal." wire:loading.attr="disabled">Remove member</flux:button>@endif</td>@endif</tr>
+                @endforeach
+            </tbody></table>
+        </div>
+
+        @if ($this->goal->isOwnedBy(auth()->user()))
+            <form wire:submit="invite" class="grid gap-3 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <flux:input wire:model="inviteEmail" label="Invite a registered user by email" type="email" maxlength="255" required />
+                <flux:button type="submit" variant="primary" wire:loading.attr="disabled">Send invitation</flux:button>
+            </form>
+            @if ($this->memberships->isNotEmpty())
+                <div class="flex flex-wrap gap-2" aria-label="Current invitations and memberships">
+                    @foreach ($this->memberships as $membership)
+                        <flux:badge wire:key="goal-membership-{{ $membership->id }}" :color="$membership->status === GoalMembershipStatus::Accepted ? 'green' : 'yellow'">{{ $membership->user->name }} · {{ ucfirst($membership->status->value) }}</flux:badge>
+                    @endforeach
+                </div>
+            @endif
+        @endif
+    </section>
+
     <div class="space-y-4">
-        <flux:heading size="lg" level="2">Funding Sources</flux:heading>
+        <flux:heading size="lg" level="2">Your Account Allocations</flux:heading>
         <div class="grid gap-4 md:grid-cols-2">
             @forelse ($this->allocations as $allocation)
                 <article wire:key="allocation-{{ $allocation->id }}" class="space-y-4 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700">

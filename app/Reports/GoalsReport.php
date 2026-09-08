@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\GoalMembershipStatus;
 use App\GoalStatus;
 use App\Models\Goal;
 use App\Models\GoalAccountAllocation;
@@ -16,8 +17,8 @@ class GoalsReport
      * @return array{
      *     goals: list<array{key: int, name: string, target: string, allocated: string, remaining: string, progress: string, status: string, overfunded: string}>,
      *     selectedGoal: Goal|null,
-     *     selectedSummary: array{target: string, allocated: string, remaining: string, progress: string, status: string, overfunded: string}|null,
-     *     fundingSources: list<array{key: int, name: string, type: string, allocated: string, share: string, isActive: bool}>,
+     *     selectedSummary: array{key: int, name: string, target: string, allocated: string, remaining: string, progress: string, status: string, overfunded: string}|null,
+     *     fundingSources: list<array{key: string, name: string, type: string, allocated: string, share: string, isActive: bool|null, group: string}>,
      *     fundingTotal: string,
      * }
      */
@@ -26,7 +27,7 @@ class GoalsReport
         $goals = $this->goals($user);
         $selectedGoal = $goalId === null ? $goals->first() : $goals->firstWhere('id', $goalId);
 
-        $goalProgress = $goals->map(fn (Goal $goal): array => $this->goalProgress($goal))->values()->all();
+        $goalProgress = array_values($goals->map(fn (Goal $goal): array => $this->goalProgress($goal))->all());
         $fundingSources = $selectedGoal === null ? [] : $this->fundingSources($selectedGoal, $user);
         $fundingTotal = BigDecimal::zero();
 
@@ -46,10 +47,8 @@ class GoalsReport
     /** @return Collection<int, Goal> */
     public function goals(User $user): Collection
     {
-        $goals = $user->goals()
-            ->with(['goalAccountAllocations' => fn ($query) => $query
-                ->whereHas('account', fn ($query) => $query->whereBelongsTo($user))
-                ->with('account')])
+        $goals = Goal::query()->accessibleTo($user)
+            ->with(['goalAccountAllocations:id,goal_id,amount', 'owner:id,name'])
             ->orderBy('name')
             ->orderBy('id')
             ->get();
@@ -72,26 +71,57 @@ class GoalsReport
         ];
     }
 
-    /** @return list<array{key: int, name: string, type: string, allocated: string, share: string, isActive: bool}> */
+    /** @return list<array{key: string, name: string, type: string, allocated: string, share: string, isActive: bool|null, group: string}> */
     private function fundingSources(Goal $goal, User $user): array
     {
-        $allocations = $goal->goalAccountAllocations
-            ->filter(fn (GoalAccountAllocation $allocation): bool => $allocation->account !== null && $allocation->account->user_id === $user->id)
-            ->values();
-        $total = BigDecimal::zero();
-
-        foreach ($allocations as $allocation) {
-            $total = $total->plus($allocation->amount);
-        }
-
-        return $allocations->map(fn (GoalAccountAllocation $allocation): array => [
-            'key' => $allocation->id,
+        $total = BigDecimal::of($goal->allocatedAmount());
+        $ownAllocations = GoalAccountAllocation::query()
+            ->whereBelongsTo($goal)
+            ->whereHas('account', fn ($query) => $query->whereBelongsTo($user))
+            ->with(['account' => fn ($query) => $query->whereBelongsTo($user)])
+            ->orderBy('id')
+            ->get();
+        /** @var list<array{key: string, name: string, type: string, allocated: string, share: string, isActive: bool|null, group: string}> $sources */
+        $sources = array_values($ownAllocations->map(fn (GoalAccountAllocation $allocation): array => [
+            'key' => 'account-'.$allocation->id,
             'name' => $allocation->account->name,
             'type' => $allocation->account->type->label(),
             'allocated' => (string) BigDecimal::of($allocation->amount)->toScale(2),
             'share' => $this->percentage(BigDecimal::of($allocation->amount), $total),
             'isActive' => $allocation->account->is_active,
-        ])->all();
+            'group' => 'Your Accounts',
+        ])->all());
+
+        $participantIds = $goal->memberships()
+            ->where('status', GoalMembershipStatus::Accepted)
+            ->pluck('user_id')
+            ->prepend($goal->user_id)
+            ->unique()
+            ->reject(fn (int $userId): bool => $userId === $user->id)
+            ->values();
+        $contributionTotals = GoalAccountAllocation::query()
+            ->join('accounts', 'accounts.id', '=', 'goal_account_allocations.account_id')
+            ->where('goal_account_allocations.goal_id', $goal->id)
+            ->whereIn('accounts.user_id', $participantIds)
+            ->selectRaw('accounts.user_id, CAST(SUM(goal_account_allocations.amount) AS CHAR) as contribution_total')
+            ->groupBy('accounts.user_id')
+            ->pluck('contribution_total', 'accounts.user_id');
+
+        User::query()->whereIn('id', $participantIds)->orderBy('name')->orderBy('id')->get(['id', 'name'])
+            ->each(function (User $member) use ($contributionTotals, &$sources, $total): void {
+                $amount = BigDecimal::of($contributionTotals->get($member->id, '0.00'));
+                $sources[] = [
+                    'key' => 'member-'.$member->id,
+                    'name' => $member->name,
+                    'type' => 'Member contribution',
+                    'allocated' => (string) $amount->toScale(2),
+                    'share' => $this->percentage($amount, $total),
+                    'isActive' => null,
+                    'group' => 'Other Members',
+                ];
+            });
+
+        return $sources;
     }
 
     private function percentage(BigDecimal $amount, BigDecimal $total): string

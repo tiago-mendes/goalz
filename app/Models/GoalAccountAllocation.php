@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $goal_id
+ * @property int $account_id
+ * @property string $amount
+ */
 #[Fillable(['amount'])]
 class GoalAccountAllocation extends Model
 {

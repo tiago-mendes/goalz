@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\GoalStatus;
+use App\Models\Account;
 use App\Models\Goal;
+use App\Models\GoalAccountAllocation;
 use App\Models\User;
 use App\UserRole;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -156,6 +158,27 @@ class GoalsTest extends TestCase
 
         Livewire::test('pages::goals.index')->assertSeeText('Active Goals')->assertSeeText('1')
             ->assertSet('totalTarget', '9999999999.99');
+    }
+
+    public function test_total_target_card_shows_exact_aggregate_funding_progress_for_active_owned_goals(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $firstGoal = Goal::factory()->for($user)->create(['target_amount' => '100.00']);
+        $secondGoal = Goal::factory()->for($user)->create(['target_amount' => '300.00']);
+        $pausedGoal = Goal::factory()->for($user)->paused()->create(['target_amount' => '50.00']);
+        GoalAccountAllocation::factory()->for($firstGoal)->for(Account::factory()->for($user))->create(['amount' => '25.25']);
+        GoalAccountAllocation::factory()->for($secondGoal)->for(Account::factory()->for($user))->create(['amount' => '100.00']);
+        GoalAccountAllocation::factory()->for($pausedGoal)->for(Account::factory()->for($user))->create(['amount' => '50.00']);
+        $this->actingAs($user);
+
+        $page = Livewire::test('pages::goals.index');
+
+        $page->assertSeeText('BRL 125.25 / 400.00 · 31.3%')
+            ->assertSee('aria-label="Total funding progress"', escape: false)
+            ->assertSee('aria-valuenow="31.3"', escape: false);
+        $this->assertSame('400.00', $page->get('totalTarget'));
+        $this->assertSame('125.25', $page->get('totalAllocated'));
+        $this->assertSame('31.3', $page->get('totalProgressPercentage'));
     }
 
     public function test_empty_summary_is_zero_and_page_has_no_delete_controls(): void
