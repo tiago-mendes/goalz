@@ -58,7 +58,7 @@ new #[Title('Account balance history')] class extends Component {
         </div>
         <dl class="grid gap-2 sm:grid-cols-[auto_1fr] sm:gap-x-6">
             <dt>Current Balance</dt>
-            <dd class="break-words text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->account->current_balance }}</dd>
+            <dd class="break-words text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->account->current_balance" /></dd>
             <dt>Balance Updated</dt>
             <dd>{{ $this->account->balance_updated_at->format('M j, Y H:i') }}</dd>
         </dl>
@@ -79,7 +79,7 @@ new #[Title('Account balance history')] class extends Component {
                     @forelse ($this->snapshots as $snapshot)
                         <tr wire:key="account-balance-snapshot-{{ $snapshot->id }}">
                             <td class="whitespace-nowrap px-4 py-3">{{ $snapshot->recorded_at->format('M j, Y H:i') }}</td>
-                            <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $snapshot->balance }}</td>
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$snapshot->balance" /></td>
                         </tr>
                     @empty
                         <tr>

@@ -389,6 +389,36 @@ class FixedExpensesTest extends TestCase
             ->assertSee('Rent')->assertSee('Old rent');
     }
 
+    public function test_active_fixed_expense_total_is_exact_owner_scoped_and_ignores_grid_filters(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Housing']);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Rent', 'amount' => '1000000000.10']);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Internet', 'amount' => '2000000000.20']);
+        FixedExpense::factory()->for($user)->for($category)->inactive()->create(['name' => 'Inactive', 'amount' => '9999999999.99']);
+        FixedExpense::factory()->create(['name' => 'Foreign', 'amount' => '8888888888.88']);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams(['search' => 'Rent'])
+            ->test('pages::fixed-expenses.index')
+            ->assertSee('Rent')
+            ->assertDontSee('Internet')
+            ->assertSet('activeFixedExpensesTotal', '3000000000.30');
+
+        $this->assertSame('3000000000.30', $page->get('activeFixedExpensesTotal'));
+        $this->assertStringContainsString('R$ 3000000000.30', $page->html());
+        $this->assertStringNotContainsString('8888888888.88', $page->html());
+    }
+
+    public function test_active_fixed_expense_total_is_zero_without_templates(): void
+    {
+        $this->actingAs($user = User::factory()->create(['currency' => 'BRL']));
+
+        Livewire::test('pages::fixed-expenses.index')
+            ->assertSet('activeFixedExpensesTotal', '0.00')
+            ->assertSee('R$ 0.00');
+    }
+
     public function test_fixed_expense_grid_filters_payment_sources_and_handles_invalid_queries(): void
     {
         $user = User::factory()->create();

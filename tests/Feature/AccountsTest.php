@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\AccountType;
 use App\Models\Account;
+use App\Models\Goal;
+use App\Models\GoalAccountAllocation;
+use App\Models\GoalMembership;
 use App\Models\User;
 use App\UserRole;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -122,6 +125,31 @@ class AccountsTest extends TestCase
         $this->assertSame('5000.00', $inactive->current_balance);
         $this->assertTrue($inactive->balance_updated_at->equalTo($updatedAt));
         Livewire::test('pages::accounts.index')->call('setActive', $active->id, false)->assertHasNoErrors()->assertSet('totalAssets', '5000.00');
+    }
+
+    public function test_account_summary_cards_use_active_owned_accounts_and_exact_goal_allocations(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $other = User::factory()->create();
+        $first = Account::factory()->for($user)->create(['current_balance' => '1000.10']);
+        $second = Account::factory()->for($user)->create(['current_balance' => '2000.20']);
+        $inactive = Account::factory()->for($user)->inactive()->create(['current_balance' => '9000.00']);
+        $foreign = Account::factory()->for($other)->create(['current_balance' => '8000.00']);
+        $personalGoal = Goal::factory()->for($user)->create();
+        $sharedGoal = Goal::factory()->for($other)->create();
+        GoalMembership::factory()->for($sharedGoal)->for($user)->accepted()->create();
+        GoalAccountAllocation::factory()->for($personalGoal)->for($first)->create(['amount' => '400.04']);
+        GoalAccountAllocation::factory()->for($sharedGoal)->for($first)->create(['amount' => '50.01']);
+        GoalAccountAllocation::factory()->for($sharedGoal)->for($second)->create(['amount' => '2100.30']);
+        GoalAccountAllocation::factory()->for($personalGoal)->for($inactive)->create(['amount' => '9000.00']);
+        GoalAccountAllocation::factory()->for($personalGoal)->for($foreign)->create(['amount' => '8000.00']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::accounts.index')
+            ->assertSet('totalAssets', '3000.30')
+            ->assertSet('totalAllocated', '2550.35')
+            ->assertSet('totalAvailable', '449.95')
+            ->assertSeeText(['Total Assets', 'Total Allocated', 'Total Available', 'R$ 3000.30', 'R$ 2550.35', 'R$ 449.95', 'Overallocated']);
     }
 
     public function test_policy_allows_only_ownership_and_never_deletion(): void

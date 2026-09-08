@@ -39,7 +39,7 @@ class AssetsReportsTest extends TestCase
 
     public function test_assets_report_summarizes_active_owned_assets_with_exact_amounts(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['currency' => 'BRL']);
         $other = User::factory()->create();
         $account = Account::factory()->for($user)->create(['current_balance' => '1234567890.45']);
         Account::factory()->for($user)->inactive()->create(['current_balance' => '999.99']);
@@ -48,7 +48,8 @@ class AssetsReportsTest extends TestCase
         GoalAccountAllocation::factory()->for($goal)->for($account)->create(['amount' => '123.45']);
         $this->actingAs($user);
 
-        $report = Livewire::test('pages::reports.assets')->get('report');
+        $page = Livewire::test('pages::reports.assets');
+        $report = $page->get('report');
 
         $this->assertSame('1234567890.45', $report['totalAssets']);
         $this->assertSame('123.45', $report['allocatedAssets']);
@@ -56,6 +57,7 @@ class AssetsReportsTest extends TestCase
         $this->assertCount(1, $report['distribution']);
         $this->assertSame('Checking', $report['distribution'][0]['type']);
         $this->assertSame('1234567890.45', $report['distribution'][0]['balance']);
+        $page->assertSeeText(['Total Assets', 'Total Allocated', 'Total Available', 'R$ 1234567890.45', 'R$ 123.45', 'R$ 1234567767.00']);
     }
 
     public function test_assets_by_type_includes_every_type_and_handles_zero_total_percentages(): void

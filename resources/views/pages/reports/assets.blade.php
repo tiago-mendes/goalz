@@ -148,13 +148,7 @@ new #[Title('Assets Reports')] class extends Component {
             <flux:heading size="xl" level="1">Assets Reports</flux:heading>
             <flux:text>Review your current assets and recorded account balance history.</flux:text>
         </div>
-        <nav aria-label="Reports" class="flex flex-wrap gap-2">
-            <flux:button :href="route('reports.cash-flow')" wire:navigate>Cash Flow</flux:button>
-            <flux:button variant="primary" :href="route('reports.assets')" wire:navigate>Assets</flux:button>
-            <flux:button :href="route('reports.goals')" wire:navigate>Goals</flux:button>
-            <flux:button :href="route('reports.credit-cards')" wire:navigate>Credit Cards</flux:button>
-            <flux:button :href="route('reports.budgets')" wire:navigate>Budgets</flux:button>
-        </nav>
+        <x-reports.navigation />
     </div>
 
     @error('from') <flux:text class="text-red-600">{{ $message }}</flux:text> @enderror
@@ -166,17 +160,18 @@ new #[Title('Assets Reports')] class extends Component {
             <flux:text>Current balances from your active accounts.</flux:text>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
-            @foreach ([['label' => 'Total Assets', 'key' => 'totalAssets'], ['label' => 'Allocated Assets', 'key' => 'allocatedAssets'], ['label' => 'Free Assets', 'key' => 'freeAssets']] as $card)
+            @foreach ([['label' => 'Total Assets', 'description' => 'Current balances from active accounts', 'key' => 'totalAssets'], ['label' => 'Total Allocated', 'description' => 'Designated to goals', 'key' => 'allocatedAssets'], ['label' => 'Total Available', 'description' => 'Available in active accounts', 'key' => 'freeAssets']] as $card)
                 <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
                     <flux:heading size="lg">{{ $card['label'] }}</flux:heading>
-                    <p class="break-words text-2xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->report[$card['key']] }}</p>
+                    <flux:text>{{ $card['description'] }}</flux:text>
+                    <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->report[$card['key']]" /></p>
                 </div>
             @endforeach
         </div>
         @if ($this->report['overallocatedAccounts'] > 0)
             <flux:callout color="amber" icon="exclamation-triangle">
                 <flux:callout.heading>Allocation warning</flux:callout.heading>
-                <flux:callout.text>{{ $this->report['overallocatedAccounts'] }} {{ str('account')->plural($this->report['overallocatedAccounts']) }} have allocations above the current balance, totaling {{ auth()->user()->currency }} {{ $this->report['overallocatedAssets'] }}.</flux:callout.text>
+                <flux:callout.text>{{ $this->report['overallocatedAccounts'] }} {{ str('account')->plural($this->report['overallocatedAccounts']) }} have allocations above the current balance, totaling <x-money :currency="auth()->user()->currency" :amount="$this->report['overallocatedAssets']" />.</flux:callout.text>
             </flux:callout>
         @endif
     </section>
@@ -185,18 +180,18 @@ new #[Title('Assets Reports')] class extends Component {
         @if ($this->report['totalAssets'] === '0.00')
             <flux:text>No active asset balance is available to chart.</flux:text>
         @endif
-        <table class="w-full text-left text-sm"><caption class="sr-only">Assets by Account Type data</caption><thead><tr><th scope="col" class="px-4 py-3">Type</th><th scope="col" class="px-4 py-3 text-right">Amount</th><th scope="col" class="px-4 py-3 text-right">Percentage</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@foreach ($this->report['accountTypes'] as $type)<tr wire:key="asset-type-{{ $type['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $type['name'] }}</th><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $type['amount'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ $type['percentage'] }}%</td></tr>@endforeach</tbody></table>
+        <table class="w-full text-left text-sm"><caption class="sr-only">Assets by Account Type data</caption><thead><tr><th scope="col" class="px-4 py-3">Type</th><th scope="col" class="px-4 py-3 text-right">Amount</th><th scope="col" class="px-4 py-3 text-right">Percentage</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@foreach ($this->report['accountTypes'] as $type)<tr wire:key="asset-type-{{ $type['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $type['name'] }}</th><td class="px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$type['amount']" /></td><td class="px-4 py-3 text-right tabular-nums">{{ $type['percentage'] }}%</td></tr>@endforeach</tbody></table>
     </x-reports.chart-panel>
 
     <x-reports.chart-panel wire:key="account-distribution" title="Account Distribution" description="Current balances for each active account." :canvas="$this->report['distribution'] !== [] ? 'account-distribution-chart' : null">
         @if ($this->report['distribution'] === [])
             <flux:text>No active accounts are available to chart.</flux:text>
         @endif
-        <div class="overflow-x-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Account Distribution data</caption><thead><tr><th scope="col" class="px-4 py-3">Account</th><th scope="col" class="px-4 py-3">Type</th><th scope="col" class="px-4 py-3 text-right">Balance</th><th scope="col" class="px-4 py-3 text-right">Share</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['distribution'] as $account)<tr wire:key="asset-distribution-{{ $account['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $account['name'] }}</th><td class="px-4 py-3">{{ $account['type'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $account['balance'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ $account['share'] }}%</td></tr>@empty<tr><td colspan="4" class="px-4 py-6"><flux:text>No active accounts are available.</flux:text></td></tr>@endforelse</tbody></table></div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Account Distribution data</caption><thead><tr><th scope="col" class="px-4 py-3">Account</th><th scope="col" class="px-4 py-3">Type</th><th scope="col" class="px-4 py-3 text-right">Balance</th><th scope="col" class="px-4 py-3 text-right">Share</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['distribution'] as $account)<tr wire:key="asset-distribution-{{ $account['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $account['name'] }}</th><td class="px-4 py-3">{{ $account['type'] }}</td><td class="px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$account['balance']" /></td><td class="px-4 py-3 text-right tabular-nums">{{ $account['share'] }}%</td></tr>@empty<tr><td colspan="4" class="px-4 py-6"><flux:text>No active accounts are available.</flux:text></td></tr>@endforelse</tbody></table></div>
     </x-reports.chart-panel>
 
     <x-reports.chart-panel wire:key="allocated-vs-free-assets" title="Allocated vs Free Assets" description="Current account balances and their allocation status." canvas="asset-allocation-chart">
-        <table class="w-full text-left text-sm"><caption class="sr-only">Allocated vs Free Assets data</caption><thead><tr><th scope="col" class="px-4 py-3">Designation</th><th scope="col" class="px-4 py-3 text-right">Amount</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@foreach ([['label' => 'Allocated', 'key' => 'allocatedAssets'], ['label' => 'Free', 'key' => 'freeAssets'], ['label' => 'Overallocated', 'key' => 'overallocatedAssets']] as $status)<tr wire:key="asset-allocation-{{ $status['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $status['label'] }}</th><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $this->report[$status['key']] }}</td></tr>@endforeach</tbody></table>
+        <table class="w-full text-left text-sm"><caption class="sr-only">Allocated vs Free Assets data</caption><thead><tr><th scope="col" class="px-4 py-3">Designation</th><th scope="col" class="px-4 py-3 text-right">Amount</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@foreach ([['label' => 'Allocated', 'key' => 'allocatedAssets'], ['label' => 'Free', 'key' => 'freeAssets'], ['label' => 'Overallocated', 'key' => 'overallocatedAssets']] as $status)<tr wire:key="asset-allocation-{{ $status['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $status['label'] }}</th><td class="px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->report[$status['key']]" /></td></tr>@endforeach</tbody></table>
     </x-reports.chart-panel>
 
     <x-reports.chart-panel wire:key="account-balance-evolution" title="Account Balance Evolution" description="Recorded balance snapshots for one account during the selected period.">
@@ -211,7 +206,7 @@ new #[Title('Assets Reports')] class extends Component {
         @error('accountId') <flux:error name="accountId" /> @enderror
         @if ($this->accountId !== null)
             <div wire:ignore class="relative mt-4 h-72 w-full" aria-label="Account balance evolution chart"><canvas id="account-balance-evolution-chart"></canvas></div>
-            <div class="overflow-x-auto"><table class="mt-4 w-full text-left text-sm"><caption class="sr-only">Account Balance Evolution data</caption><thead><tr><th scope="col" class="px-4 py-3">Recorded</th><th scope="col" class="px-4 py-3 text-right">Balance</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['accountEvolution'] as $snapshot)<tr wire:key="account-evolution-{{ $snapshot['key'] }}"><th scope="row" class="whitespace-nowrap px-4 py-3 font-normal">{{ $snapshot['label'] }}</th><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $snapshot['balance'] }}</td></tr>@empty<tr><td colspan="2" class="px-4 py-6"><flux:text>No balance snapshots are recorded in this period.</flux:text></td></tr>@endforelse</tbody></table></div>
+            <div class="overflow-x-auto"><table class="mt-4 w-full text-left text-sm"><caption class="sr-only">Account Balance Evolution data</caption><thead><tr><th scope="col" class="px-4 py-3">Recorded</th><th scope="col" class="px-4 py-3 text-right">Balance</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['accountEvolution'] as $snapshot)<tr wire:key="account-evolution-{{ $snapshot['key'] }}"><th scope="row" class="whitespace-nowrap px-4 py-3 font-normal">{{ $snapshot['label'] }}</th><td class="px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$snapshot['balance']" /></td></tr>@empty<tr><td colspan="2" class="px-4 py-6"><flux:text>No balance snapshots are recorded in this period.</flux:text></td></tr>@endforelse</tbody></table></div>
         @else
             <flux:text>No accounts are available for balance evolution.</flux:text>
         @endif

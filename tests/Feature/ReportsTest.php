@@ -16,6 +16,38 @@ class ReportsTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_reports_root_and_sidebar_default_to_goals_reports(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->get('/reports')->assertRedirect(route('reports.goals'));
+        $this->get(route('dashboard'))->assertSee('href="'.route('reports.goals').'"', false);
+    }
+
+    public function test_report_navigation_has_the_shared_order_on_each_report(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $routes = ['reports.goals', 'reports.budgets', 'reports.assets', 'reports.credit-cards', 'reports.cash-flow'];
+        $labels = ['Goals', 'Budgets', 'Assets', 'Credit Cards', 'Cash Flow'];
+
+        foreach ($routes as $route) {
+            $content = $this->get(route($route))->assertOk()->getContent();
+            $navStart = strpos($content, '<nav aria-label="Reports"');
+            $this->assertNotFalse($navStart);
+            $nav = preg_replace('/\s+/', ' ', strip_tags(substr($content, $navStart, strpos($content, '</nav>', $navStart) - $navStart)));
+            $positions = [];
+            foreach ($labels as $label) {
+                $position = strpos($nav, $label);
+                $this->assertNotFalse($position);
+                $positions[] = $position;
+            }
+            $sortedPositions = $positions;
+            sort($sortedPositions);
+
+            $this->assertSame($sortedPositions, $positions);
+        }
+    }
+
     public function test_reports_default_to_the_last_six_calendar_months(): void
     {
         $this->travelTo('2026-09-07');

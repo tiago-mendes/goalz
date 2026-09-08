@@ -163,7 +163,7 @@ class GoalAccountAllocationsTest extends TestCase
         $this->assertSame('80.00', $allocation->refresh()->amount);
         $this->assertSame('-30.00', $account->refresh()->availableAmount());
         $this->assertSame('30.00', $account->overallocatedAmount());
-        $this->get(route('accounts.index'))->assertSeeText('Overallocated')->assertSeeText('BRL 30.00');
+        $this->get(route('accounts.index'))->assertSeeText('Overallocated')->assertSeeText('R$ 30.00');
 
         Livewire::test('pages::goals.allocations', ['goalId' => $goal->id])
             ->call('editAllocation', $allocation->id)->set('amount', '80.01')->call('save')->assertHasErrors('amount')

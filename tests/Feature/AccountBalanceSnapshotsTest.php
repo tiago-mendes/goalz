@@ -67,7 +67,7 @@ class AccountBalanceSnapshotsTest extends TestCase
         $this->assertSame('2026-09-07 10:00:00', $account->balance_updated_at->format('Y-m-d H:i:s'));
 
         Livewire::test('pages::accounts.history', ['accountId' => $account->id])
-            ->assertSeeInOrder(['Sep 7, 2026 10:00', 'BRL 1500.00', 'Sep 7, 2026 09:00', 'BRL 2000.00', 'Sep 7, 2026 08:00', 'BRL 1000.00']);
+            ->assertSeeInOrder(['Sep 7, 2026 10:00', 'R$ 1500.00', 'Sep 7, 2026 09:00', 'R$ 2000.00', 'Sep 7, 2026 08:00', 'R$ 1000.00']);
     }
 
     #[TestWith(['1000'])]
@@ -150,7 +150,7 @@ class AccountBalanceSnapshotsTest extends TestCase
             ->assertOk()
             ->assertSeeText('Private savings')
             ->assertSeeText('Inactive')
-            ->assertSeeText('BRL 1234.56');
+            ->assertSeeText('R$ 1234.56');
         $this->get(route('accounts.index'))->assertSee('href="'.route('accounts.history', $account->id).'"', false);
 
         $viewer = User::factory()->create(['role' => UserRole::from($role)]);

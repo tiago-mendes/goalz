@@ -90,7 +90,7 @@ class CreditCardBillsTest extends TestCase
 
         Livewire::test('pages::credit-cards.show', ['creditCardId' => $card->id])
             ->assertSeeText('Current / Projected Bill')
-            ->assertSeeText('BRL 35.00')
+            ->assertSeeText('R$ 35.00')
             ->assertSeeText('2026-09-25')
             ->assertSeeText('2026-10-02')
             ->call('openBill')
@@ -115,12 +115,12 @@ class CreditCardBillsTest extends TestCase
 
         $page = Livewire::test('pages::credit-cards.show', ['creditCardId' => $card->id])
             ->assertSeeText('2026-02-28')
-            ->assertSeeText('BRL 40.00');
+            ->assertSeeText('R$ 40.00');
         $expense = $fixedExpense->expenses()->where('occurrence_month', 2)->sole();
         $expense->deleted_by_user_at = now();
         $expense->save();
 
-        $page->call('openBill')->assertHasNoErrors()->assertSeeText('BRL 0.00');
+        $page->call('openBill')->assertHasNoErrors()->assertSeeText('R$ 0.00');
 
         $this->assertSame(1, $fixedExpense->expenses()->where('occurrence_month', 2)->count());
         $this->assertNotNull($expense->refresh()->deleted_by_user_at);
@@ -143,7 +143,7 @@ class CreditCardBillsTest extends TestCase
             ->assertSeeText('Calculated Bill')
             ->assertSeeText('2026-09-13 – 2026-10-12')
             ->assertSeeText('2026-10-20')
-            ->assertSeeText('BRL 75.25')
+            ->assertSeeText('R$ 75.25')
             ->assertSeeText('Inactive');
     }
 

@@ -394,17 +394,17 @@ new #[Title('Goal allocations')] class extends Component {
     @endif
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Target</flux:heading><p class="text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->goal->target_amount }}</p></div>
-        <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Allocated</flux:heading><p class="text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ $this->goal->allocatedAmount() }}</p></div>
+        <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Target</flux:heading><p class="text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->goal->target_amount" /></p></div>
+        <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Allocated</flux:heading><p class="text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->goal->allocatedAmount()" /></p></div>
         <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700">
             <flux:heading>{{ BigDecimal::of($this->goal->remainingAmount())->isNegative() ? 'Overfunded' : 'Remaining' }}</flux:heading>
-            <p class="text-xl font-semibold tabular-nums">{{ auth()->user()->currency }} {{ BigDecimal::of($this->goal->remainingAmount())->isNegative() ? $this->goal->overfundedAmount() : $this->goal->remainingAmount() }}</p>
+            <p class="text-xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="BigDecimal::of($this->goal->remainingAmount())->isNegative() ? $this->goal->overfundedAmount() : $this->goal->remainingAmount()" /></p>
         </div>
         <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Progress</flux:heading><p class="text-xl font-semibold tabular-nums">{{ $this->goal->progressPercentage() }}%</p></div>
     </div>
 
     @if (BigDecimal::of($this->goal->remainingAmount())->isNegative())
-        <flux:callout>The goal is overfunded by {{ auth()->user()->currency }} {{ $this->goal->overfundedAmount() }}. Existing allocations are preserved; reduce or remove them if desired.</flux:callout>
+            <flux:callout>The goal is overfunded by <x-money :currency="auth()->user()->currency" :amount="$this->goal->overfundedAmount()" />. Existing allocations are preserved; reduce or remove them if desired.</flux:callout>
     @endif
 
     <section class="space-y-4" aria-labelledby="goal-members-heading">
@@ -412,7 +412,7 @@ new #[Title('Goal allocations')] class extends Component {
         <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
             <table class="w-full text-left text-sm"><caption class="sr-only">Goal member contribution totals</caption><thead class="bg-zinc-50 dark:bg-zinc-900"><tr><th scope="col" class="px-4 py-3">Member</th><th scope="col" class="px-4 py-3 text-right">Contribution</th>@if ($this->goal->isOwnedBy(auth()->user()))<th scope="col" class="px-4 py-3">Actions</th>@endif</tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                 @foreach ($this->contributions as $contribution)
-                    <tr wire:key="goal-contribution-{{ $contribution['userId'] }}"><th scope="row" class="px-4 py-3 font-normal"><span class="inline-flex items-center gap-2">{{ $contribution['name'] }} @if ($contribution['isOwner'])<flux:badge color="green">Owner</flux:badge>@endif</span></th><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $contribution['amount'] }}</td>@if ($this->goal->isOwnedBy(auth()->user()))<td class="px-4 py-3">@if (! $contribution['isOwner'])<flux:button size="sm" variant="danger" wire:click="removeMember({{ $contribution['userId'] }})" wire:confirm="Removing this member will also remove their current allocations from this goal." wire:loading.attr="disabled">Remove member</flux:button>@endif</td>@endif</tr>
+                    <tr wire:key="goal-contribution-{{ $contribution['userId'] }}"><th scope="row" class="px-4 py-3 font-normal"><span class="inline-flex items-center gap-2">{{ $contribution['name'] }} @if ($contribution['isOwner'])<flux:badge color="green">Owner</flux:badge>@endif</span></th><td class="px-4 py-3 text-right tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$contribution['amount']" /></td>@if ($this->goal->isOwnedBy(auth()->user()))<td class="px-4 py-3">@if (! $contribution['isOwner'])<flux:button size="sm" variant="danger" wire:click="removeMember({{ $contribution['userId'] }})" wire:confirm="Removing this member will also remove their current allocations from this goal." wire:loading.attr="disabled">Remove member</flux:button>@endif</td>@endif</tr>
                 @endforeach
             </tbody></table>
         </div>
@@ -442,11 +442,11 @@ new #[Title('Goal allocations')] class extends Component {
                         <flux:badge :color="$allocation->account->is_active ? 'green' : 'zinc'">{{ $allocation->account->is_active ? 'Active' : 'Inactive' }}</flux:badge>
                     </div>
                     <div class="space-y-1 tabular-nums">
-                        <p class="text-xl font-semibold">{{ auth()->user()->currency }} {{ $allocation->amount }}</p>
+                        <p class="text-xl font-semibold"><x-money :currency="auth()->user()->currency" :amount="$allocation->amount" /></p>
                         <flux:text>{{ $this->percentageFor($allocation->amount, $allocation->account->current_balance) }}% of current account balance</flux:text>
                     </div>
                     @if (BigDecimal::of($allocation->account->availableAmount())->isNegative())
-                        <flux:callout>Account is overallocated by {{ auth()->user()->currency }} {{ $allocation->account->overallocatedAmount() }}. You may reduce or remove this allocation.</flux:callout>
+                            <flux:callout>Account is overallocated by <x-money :currency="auth()->user()->currency" :amount="$allocation->account->overallocatedAmount()" />. You may reduce or remove this allocation.</flux:callout>
                     @endif
                     <div class="flex flex-wrap gap-2">
                         <flux:button size="sm" wire:click="editAllocation({{ $allocation->id }})">Edit amount</flux:button>
@@ -478,9 +478,9 @@ new #[Title('Goal allocations')] class extends Component {
                         <div wire:key="eligible-account-summary-{{ $account->id }}" class="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700">
                             <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-medium">{{ $account->name }}</span><span>{{ $account->type->label() }}</span></div>
                             <dl class="mt-2 grid grid-cols-[auto_auto] gap-x-3 gap-y-1 tabular-nums">
-                                <dt>Balance</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->current_balance }}</dd>
-                                <dt>Allocated elsewhere</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->allocatedAmount() }}</dd>
-                                <dt>Available</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $account->availableAmount() }}</dd>
+                                <dt>Balance</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->current_balance" /></dd>
+                                <dt>Allocated elsewhere</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->allocatedAmount()" /></dd>
+                                <dt>Available</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$account->availableAmount()" /></dd>
                             </dl>
                         </div>
                     @endforeach
@@ -489,13 +489,13 @@ new #[Title('Goal allocations')] class extends Component {
 
             @if ($selectedAccount = $this->selectedOwnedAccount())
                 <dl class="grid grid-cols-[auto_auto] gap-x-4 gap-y-1 rounded-lg border border-zinc-200 p-4 text-sm tabular-nums dark:border-zinc-700">
-                    <dt>Current balance</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $selectedAccount->current_balance }}</dd>
-                    <dt>Already allocated</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $selectedAccount->allocatedAmount() }}</dd>
-                    <dt>Available</dt><dd class="text-right">{{ auth()->user()->currency }} {{ $selectedAccount->availableAmount() }}</dd>
-                    <dt>Maximum for this goal</dt><dd class="text-right font-medium">{{ auth()->user()->currency }} {{ $this->maximumAmount }}</dd>
+                    <dt>Current balance</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$selectedAccount->current_balance" /></dd>
+                    <dt>Already allocated</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$selectedAccount->allocatedAmount()" /></dd>
+                    <dt>Available</dt><dd class="text-right"><x-money :currency="auth()->user()->currency" :amount="$selectedAccount->availableAmount()" /></dd>
+                    <dt>Maximum for this goal</dt><dd class="text-right font-medium"><x-money :currency="auth()->user()->currency" :amount="$this->maximumAmount" /></dd>
                 </dl>
 
-                <flux:input wire:model.live.debounce.250ms="amount" :label="'Amount ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.01" required />
+                <flux:input wire:model.live.debounce.250ms="amount" :label="'Amount ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.01" required />
 
                 <div class="space-y-2">
                     <div class="flex items-center justify-between gap-4"><label for="allocation-percentage" class="text-sm font-medium">Percentage of current account balance</label><output for="allocation-percentage" class="tabular-nums">{{ $percentage }}%</output></div>

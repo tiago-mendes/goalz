@@ -100,7 +100,7 @@ new #[Title('Monthly Income')] class extends Component {
         <flux:heading size="lg" level="2">Default monthly income</flux:heading>
         <flux:text>Used when you first open a month without a saved income. Changing this leaves existing months unchanged.</flux:text>
         <form wire:submit="saveDefault" class="space-y-4">
-            <flux:input wire:model="default_monthly_income" :label="'Default income ('.auth()->user()->currency.')'" placeholder="Not configured" inputmode="decimal" />
+        <flux:input wire:model="default_monthly_income" :label="'Default income ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" placeholder="Not configured" inputmode="decimal" />
             <flux:text>Leave blank for no default. Zero is a valid income.</flux:text>
             <flux:button type="submit" variant="primary" wire:loading.attr="disabled">Save default</flux:button>
         </form>
@@ -112,9 +112,9 @@ new #[Title('Monthly Income')] class extends Component {
             <flux:button type="submit" wire:loading.attr="disabled">Open month</flux:button>
         </form>
         <flux:heading size="lg" level="2">{{ Carbon::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
-        <flux:text>{{ $this->income ? auth()->user()->currency.' '.$this->income->amount : 'No income configured for this month yet.' }}</flux:text>
+        <flux:text>@if ($this->income)<x-money :currency="auth()->user()->currency" :amount="$this->income->amount" />@else No income configured for this month yet. @endif</flux:text>
         <form wire:submit="saveMonth" class="space-y-4">
-            <flux:input wire:model="amount" :label="'Monthly income ('.auth()->user()->currency.')'" inputmode="decimal" placeholder="0.00" required />
+        <flux:input wire:model="amount" :label="'Monthly income ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.00" required />
             <flux:button type="submit" variant="primary" wire:loading.attr="disabled">{{ $this->income ? 'Save monthly income' : 'Create monthly income' }}</flux:button>
         </form>
     </div>
@@ -128,7 +128,7 @@ new #[Title('Monthly Income')] class extends Component {
                 @forelse ($this->history as $record)
                     <tr wire:key="income-{{ $record->id }}">
                         <td class="px-4 py-3">{{ Carbon::create($record->year, $record->month, 1)->format('F Y') }}</td>
-                        <td class="px-4 py-3">{{ auth()->user()->currency }} {{ $record->amount }}</td>
+                        <td class="px-4 py-3"><x-money :currency="auth()->user()->currency" :amount="$record->amount" /></td>
                     </tr>
                 @empty
                     <tr><td colspan="2" class="px-4 py-6">No monthly income records yet.</td></tr>
