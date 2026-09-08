@@ -2,8 +2,10 @@
 
 use App\Actions\MaterializeFixedExpensesForMonth;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,13 +14,33 @@ use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 new #[Title('Expenses')] class extends Component {
+    #[Url(history: true)]
     public string $month = '';
 
     #[Locked]
     public string $selectedMonth = '';
+
+    #[Url(history: true)]
+    public string $search = '';
+
+    #[Url(history: true)]
+    public string $category = '';
+
+    #[Url(history: true)]
+    public string $source = '';
+
+    #[Url(as: 'payment_source', history: true)]
+    public string $paymentSource = '';
+
+    #[Url(history: true)]
+    public string $sort = 'date';
+
+    #[Url(history: true)]
+    public string $direction = 'asc';
 
     public bool $showDeleted = false;
 
@@ -29,9 +51,10 @@ new #[Title('Expenses')] class extends Component {
 
     public function mount(): void
     {
-        $month = request()->query('month');
+        $month = request()->query('month', $this->month);
         $valid = Validator::make(['month' => $month], ['month' => ['required', 'string', 'date_format:Y-m', 'after_or_equal:1000-01', 'before_or_equal:9999-12']])->passes();
         $this->month = $valid ? $month : now()->format('Y-m');
+        $this->normalizeFilters();
         $this->openMonth();
     }
 
@@ -68,11 +91,53 @@ new #[Title('Expenses')] class extends Component {
     public function total(): string
     {
         $total = BigDecimal::of('0.00');
-        foreach ($this->expenses as $expense) {
+        foreach ($this->unfilteredMonthQuery()->whereNull('deleted_by_user_at')->get() as $expense) {
             $total = $total->plus($expense->amount);
         }
 
         return (string) $total->toScale(2);
+    }
+
+    #[Computed]
+    public function categories(): Collection
+    {
+        return auth()->user()->expenseCategories()->orderBy('name')->orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function accounts(): Collection
+    {
+        return auth()->user()->accounts()->orderBy('name')->orderBy('id')->get();
+    }
+
+    #[Computed]
+    public function creditCards(): Collection
+    {
+        return auth()->user()->creditCards()->orderBy('name')->orderBy('id')->get();
+    }
+
+    public function clearFilters(): void
+    {
+        $this->search = '';
+        $this->category = '';
+        $this->source = '';
+        $this->paymentSource = '';
+        $this->sort = 'date';
+        $this->direction = 'asc';
+        $this->refreshExpenses();
+    }
+
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['search', 'category', 'source', 'paymentSource', 'sort', 'direction'], true)) {
+            $this->normalizeFilters();
+            $this->refreshExpenses();
+        }
+    }
+
+    public function hasActiveFilters(): bool
+    {
+        return trim($this->search) !== '' || $this->category !== '' || $this->source !== '' || $this->paymentSource !== '';
     }
 
     public function deleteExpense(int $expenseId): void
@@ -100,13 +165,80 @@ new #[Title('Expenses')] class extends Component {
     /** @return HasMany<Expense, \App\Models\User> */
     private function monthQuery(): HasMany
     {
-        return auth()->user()->expenses()->forMonth(CarbonImmutable::createFromFormat('!Y-m', $this->selectedMonth))
-            ->with([
-                'expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
-                'paymentAccount' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
-                'creditCard' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
-            ])
-            ->orderBy('expense_date')->orderBy('id');
+        $query = $this->unfilteredMonthQuery()->with([
+            'expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+            'paymentAccount' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+            'creditCard' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
+        ]);
+        $search = trim($this->search);
+
+        if ($search !== '') {
+            $query->where(function (Builder $query) use ($search): void {
+                $query->where('name', 'like', '%'.$search.'%')->orWhere('description', 'like', '%'.$search.'%');
+            });
+        }
+        if ($this->category !== '') {
+            $query->where('expense_category_id', $this->category);
+        }
+        if ($this->source === 'manual') {
+            $query->whereNull('fixed_expense_id');
+        } elseif ($this->source === 'recurring') {
+            $query->whereNotNull('fixed_expense_id');
+        }
+        if ($this->paymentSource === 'none') {
+            $query->whereNull('payment_account_id')->whereNull('credit_card_id');
+        } elseif ($this->paymentSource === 'account') {
+            $query->whereNotNull('payment_account_id');
+        } elseif ($this->paymentSource === 'card') {
+            $query->whereNotNull('credit_card_id');
+        } elseif (str_starts_with($this->paymentSource, 'account:')) {
+            $query->where('payment_account_id', (int) str_replace('account:', '', $this->paymentSource));
+        } elseif (str_starts_with($this->paymentSource, 'card:')) {
+            $query->where('credit_card_id', (int) str_replace('card:', '', $this->paymentSource));
+        }
+        if ($this->sort === 'category') {
+            $query->orderBy(ExpenseCategory::query()->select('name')
+                ->whereColumn('expense_categories.id', 'expenses.expense_category_id'), $this->direction);
+        } else {
+            $query->orderBy(match ($this->sort) {
+                'name' => 'name',
+                'amount' => 'amount',
+                default => 'expense_date',
+            }, $this->direction);
+        }
+
+        return $query->orderBy('id');
+    }
+
+    /** @return HasMany<Expense, \App\Models\User> */
+    private function unfilteredMonthQuery(): HasMany
+    {
+        return auth()->user()->expenses()->forMonth(CarbonImmutable::createFromFormat('!Y-m', $this->selectedMonth));
+    }
+
+    private function normalizeFilters(): void
+    {
+        $this->search = trim($this->search);
+        $this->category = ctype_digit($this->category) && auth()->user()->expenseCategories()->whereKey((int) $this->category)->exists()
+            ? (string) (int) $this->category : '';
+        $this->source = in_array($this->source, ['manual', 'recurring'], true) ? $this->source : '';
+        $this->paymentSource = $this->normalizePaymentSource($this->paymentSource);
+        $this->sort = in_array($this->sort, ['date', 'name', 'amount', 'category'], true) ? $this->sort : 'date';
+        $this->direction = in_array($this->direction, ['asc', 'desc'], true) ? $this->direction : 'asc';
+    }
+
+    private function normalizePaymentSource(string $paymentSource): string
+    {
+        if (in_array($paymentSource, ['', 'none', 'account', 'card'], true)) {
+            return $paymentSource;
+        }
+        if (preg_match('/\A(account|card):([1-9][0-9]*)\z/', $paymentSource, $matches) !== 1) {
+            return '';
+        }
+        $relation = $matches[1] === 'account' ? 'accounts' : 'creditCards';
+
+        return auth()->user()->{$relation}()->whereKey((int) $matches[2])->exists()
+            ? $matches[1].':'.(int) $matches[2] : '';
     }
 
     private function refreshExpenses(): void
@@ -127,6 +259,46 @@ new #[Title('Expenses')] class extends Component {
         <flux:input wire:model="month" label="Month" type="month" min="1000-01" max="9999-12" required />
         <flux:button type="submit" wire:loading.attr="disabled">Open month</flux:button>
     </form>
+    <div class="flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:flex-row sm:flex-wrap sm:items-end">
+        <flux:input class="min-w-56 sm:flex-1" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search expenses..." type="search" />
+        <flux:select wire:model.live="category" label="Category" class="min-w-44">
+            <flux:select.option value="">All categories</flux:select.option>
+            @foreach ($this->categories as $categoryOption)
+                <flux:select.option value="{{ $categoryOption->id }}">{{ $categoryOption->name }}{{ $categoryOption->is_active ? '' : ' (Inactive)' }}</flux:select.option>
+            @endforeach
+        </flux:select>
+        <flux:select wire:model.live="source" label="Source" class="min-w-36">
+            <flux:select.option value="">All</flux:select.option>
+            <flux:select.option value="manual">Manual</flux:select.option>
+            <flux:select.option value="recurring">Recurring</flux:select.option>
+        </flux:select>
+        <flux:select wire:model.live="paymentSource" label="Payment Source" class="min-w-44">
+            <flux:select.option value="">All payment sources</flux:select.option>
+            <flux:select.option value="none">Not specified</flux:select.option>
+            <flux:select.option value="account">Accounts</flux:select.option>
+            @foreach ($this->accounts as $account)
+                <flux:select.option value="account:{{ $account->id }}">Account: {{ $account->name }}</flux:select.option>
+            @endforeach
+            <flux:select.option value="card">Credit Cards</flux:select.option>
+            @foreach ($this->creditCards as $creditCard)
+                <flux:select.option value="card:{{ $creditCard->id }}">Credit Card: {{ $creditCard->name }}</flux:select.option>
+            @endforeach
+        </flux:select>
+        <flux:select wire:model.live="sort" label="Sort" class="min-w-44">
+            <flux:select.option value="date">Date</flux:select.option>
+            <flux:select.option value="name">Name</flux:select.option>
+            <flux:select.option value="amount">Amount</flux:select.option>
+            <flux:select.option value="category">Category</flux:select.option>
+        </flux:select>
+        <flux:select wire:model.live="direction" label="Direction" class="min-w-32">
+            <flux:select.option value="asc">Ascending</flux:select.option>
+            <flux:select.option value="desc">Descending</flux:select.option>
+        </flux:select>
+        @if ($this->hasActiveFilters())
+            <flux:button wire:click="clearFilters">Clear filters</flux:button>
+        @endif
+    </div>
+    <flux:text>{{ $this->expenses->count() }} {{ $this->expenses->count() === 1 ? 'expense' : 'expenses' }} shown</flux:text>
     <div class="space-y-2 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
         <flux:heading size="lg">{{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
         <flux:text>Total Expenses</flux:text>
@@ -164,7 +336,10 @@ new #[Title('Expenses')] class extends Component {
                         </div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-8"><flux:text>No expenses for this month. Add an expense to record a cost.</flux:text></td></tr>
+                    <tr><td colspan="7" class="px-4 py-8">
+                        <flux:text>{{ $this->hasActiveFilters() ? 'No expenses match your current filters.' : 'No expenses for this month. Add an expense to record a cost.' }}</flux:text>
+                        @if ($this->hasActiveFilters()) <flux:button size="sm" wire:click="clearFilters">Clear filters</flux:button> @endif
+                    </td></tr>
                 @endforelse
             </tbody>
         </table>

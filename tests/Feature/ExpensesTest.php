@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\MaterializeFixedExpensesForMonth;
+use App\Models\Account;
+use App\Models\CreditCard;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
@@ -625,6 +627,90 @@ class ExpensesTest extends TestCase
         @$document->loadHTML($page->html());
         $xpath = new \DOMXPath($document);
         $this->assertSame(1, $xpath->query('//tbody/tr/td[2]//svg[@data-flux-icon]')->length);
+    }
+
+    public function test_expense_grid_filters_inside_the_selected_month_and_clear_filters_preserves_month(): void
+    {
+        $user = User::factory()->create(['currency' => 'USD']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Food']);
+        $otherCategory = ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archive']);
+        $account = Account::factory()->for($user)->create(['name' => 'Cash']);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'September lunch', 'description' => 'Office meal', 'amount' => '10.00',
+            'expense_date' => '2026-09-10', 'payment_account_id' => $account->id,
+        ]);
+        Expense::factory()->for($user)->for($otherCategory)->create([
+            'name' => 'August lunch', 'description' => 'Old meal', 'expense_date' => '2026-08-10',
+        ]);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams([
+            'month' => '2026-09', 'search' => 'Office', 'category' => $category->id,
+            'source' => 'manual', 'payment_source' => 'account:'.$account->id,
+        ])->test('pages::expenses.index')
+            ->assertSet('selectedMonth', '2026-09')
+            ->assertSee('September lunch')
+            ->assertDontSee('August lunch')
+            ->assertSee('USD 10.00');
+
+        $page->call('clearFilters')
+            ->assertSet('selectedMonth', '2026-09')
+            ->assertSet('search', '')
+            ->assertSet('category', '')
+            ->assertSet('source', '')
+            ->assertSet('paymentSource', '')
+            ->assertSee('September lunch')
+            ->assertDontSee('August lunch');
+    }
+
+    public function test_expense_grid_supports_source_payment_search_and_sort_filters(): void
+    {
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Food']);
+        $account = Account::factory()->for($user)->create(['name' => 'Itaú']);
+        $card = CreditCard::factory()->for($user)->create(['name' => 'Nubank']);
+        $fixed = FixedExpense::factory()->for($user)->for($category)->create();
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'Manual cash', 'amount' => '20.00', 'expense_date' => '2026-09-11',
+        ]);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'Manual account', 'amount' => '50.00', 'expense_date' => '2026-09-12',
+            'payment_account_id' => $account->id, 'description' => 'Account search',
+        ]);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'Recurring card', 'amount' => '90.00', 'expense_date' => '2026-09-13',
+            'fixed_expense_id' => $fixed->id, 'occurrence_year' => 2026, 'occurrence_month' => 9,
+            'credit_card_id' => $card->id,
+        ]);
+        $this->actingAs($user);
+
+        Livewire::withQueryParams(['month' => '2026-09', 'source' => 'recurring', 'payment_source' => 'card:'.$card->id, 'sort' => 'amount', 'direction' => 'desc'])
+            ->test('pages::expenses.index')
+            ->assertSee('Recurring card')->assertDontSee('Manual account')->assertDontSee('Manual cash');
+        Livewire::withQueryParams(['month' => '2026-09', 'payment_source' => 'none'])
+            ->test('pages::expenses.index')->assertSee('Manual cash')->assertDontSee('Manual account')->assertDontSee('Recurring card');
+    }
+
+    public function test_expense_grid_rejects_stale_foreign_filters_without_exception_or_data_leak(): void
+    {
+        $user = User::factory()->create();
+        $own = Expense::factory()->for($user)->create(['name' => 'Own expense']);
+        $foreign = Expense::factory()->create(['name' => 'Foreign expense']);
+        $foreignCategory = $foreign->expenseCategory;
+        $this->actingAs($user);
+
+        Livewire::withQueryParams([
+            'month' => '2026-09', 'category' => $foreignCategory->id,
+            'source' => 'invalid', 'payment_source' => 'account:999999',
+            'sort' => 'hacked_column', 'direction' => 'hacked_direction',
+        ])->test('pages::expenses.index')
+            ->assertSet('category', '')
+            ->assertSet('source', '')
+            ->assertSet('paymentSource', '')
+            ->assertSet('sort', 'date')
+            ->assertSet('direction', 'asc')
+            ->assertSee('Own expense')
+            ->assertDontSee('Foreign expense');
     }
 
     /** @param array<string, mixed> $overrides

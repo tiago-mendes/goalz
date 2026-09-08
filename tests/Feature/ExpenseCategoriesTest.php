@@ -361,4 +361,39 @@ class ExpenseCategoriesTest extends TestCase
             ->assertSee('<script>alert(1)</script>')->assertDontSee('<script>alert(1)</script>', false)
             ->assertSee('color: #64748B', false)->assertDontSee('../bad-icon');
     }
+
+    public function test_category_grid_searches_filters_sorts_and_clears_without_leaking_categories(): void
+    {
+        $user = User::factory()->create();
+        ExpenseCategory::factory()->for($user)->create(['name' => 'Zoo', 'is_active' => true]);
+        ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archived']);
+        ExpenseCategory::factory()->create(['name' => 'Private category']);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams(['search' => '  zoo  ', 'status' => 'active', 'sort' => 'name', 'direction' => 'desc'])
+            ->test('pages::expense-categories.index')
+            ->assertSet('search', 'zoo')
+            ->assertSee('Zoo')->assertDontSee('Archived')->assertDontSee('Private category');
+
+        $page->call('clearFilters')
+            ->assertSet('search', '')
+            ->assertSet('status', '')
+            ->assertSet('sort', 'name')
+            ->assertSet('direction', 'asc')
+            ->assertSee('Zoo')->assertSee('Archived')->assertDontSee('Private category');
+    }
+
+    public function test_category_grid_has_a_distinct_filtered_empty_state_and_safe_query_fallbacks(): void
+    {
+        $category = ExpenseCategory::factory()->create(['name' => 'Food']);
+        $this->actingAs($category->user);
+
+        Livewire::withQueryParams(['search' => 'missing', 'status' => 'invalid', 'sort' => 'hacked_column', 'direction' => 'whatever'])
+            ->test('pages::expense-categories.index')
+            ->assertSet('status', '')
+            ->assertSet('sort', 'name')
+            ->assertSet('direction', 'asc')
+            ->assertSee('No categories match your current filters.')
+            ->assertSee('Clear filters');
+    }
 }

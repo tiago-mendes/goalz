@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
+use App\Models\CreditCard;
 use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
 use App\Models\User;
@@ -363,6 +365,62 @@ class FixedExpensesTest extends TestCase
 
         Livewire::test('pages::fixed-expenses.index')->assertSee('Category unavailable')
             ->assertDontSee('Private category')->assertDontSee('color: #ABCDEF', false);
+    }
+
+    public function test_fixed_expense_grid_searches_filters_sorts_and_clears(): void
+    {
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Housing']);
+        $inactiveCategory = ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archive']);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Rent', 'amount' => '2000.00']);
+        FixedExpense::factory()->for($user)->for($inactiveCategory)->inactive()->create(['name' => 'Old rent', 'amount' => '100.00']);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams(['search' => 'old', 'status' => 'inactive', 'category' => $inactiveCategory->id, 'sort' => 'amount', 'direction' => 'desc'])
+            ->test('pages::fixed-expenses.index')
+            ->assertSee('Old rent')->assertDontSee('Rent');
+
+        $page->call('clearFilters')
+            ->assertSet('search', '')
+            ->assertSet('category', '')
+            ->assertSet('status', '')
+            ->assertSet('sort', 'name')
+            ->assertSet('direction', 'asc')
+            ->assertSee('Rent')->assertSee('Old rent');
+    }
+
+    public function test_fixed_expense_grid_filters_payment_sources_and_handles_invalid_queries(): void
+    {
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        $account = Account::factory()->for($user)->create(['name' => 'Itaú']);
+        $card = CreditCard::factory()->for($user)->create(['name' => 'Visa']);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Account rent', 'payment_account_id' => $account->id]);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Card rent', 'credit_card_id' => $card->id]);
+        FixedExpense::factory()->for($user)->for($category)->create(['name' => 'Cash rent']);
+        $this->actingAs($user);
+
+        Livewire::withQueryParams(['payment_source' => 'card:'.$card->id])
+            ->test('pages::fixed-expenses.index')
+            ->assertSee('Card rent')->assertDontSee('Account rent')->assertDontSee('Cash rent');
+        Livewire::withQueryParams(['payment_source' => 'account:999999', 'category' => 'foreign', 'sort' => 'hacked', 'direction' => 'hacked'])
+            ->test('pages::fixed-expenses.index')
+            ->assertSet('paymentSource', '')
+            ->assertSet('category', '')
+            ->assertSet('sort', 'name')
+            ->assertSet('direction', 'asc')
+            ->assertSee('Account rent')->assertSee('Card rent')->assertSee('Cash rent');
+    }
+
+    public function test_fixed_expense_grid_has_a_distinct_filtered_empty_state(): void
+    {
+        $expense = FixedExpense::factory()->create(['name' => 'Internet']);
+        $this->actingAs($expense->user);
+
+        Livewire::withQueryParams(['search' => 'missing'])
+            ->test('pages::fixed-expenses.index')
+            ->assertSee('No fixed expenses match your current filters.')
+            ->assertSee('Clear filters');
     }
 
     /** @return array{name: string, expense_category_id: int, amount: string, day_of_month: int, start_date: string, is_active: bool} */
