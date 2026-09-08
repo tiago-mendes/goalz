@@ -101,7 +101,7 @@ new #[Title('Expenses')] class extends Component {
     #[Computed]
     public function categories(): Collection
     {
-        return auth()->user()->expenseCategories()->orderBy('name')->orderBy('id')->get();
+        return auth()->user()->expenseCategories()->where('is_active', true)->orderBy('name')->orderBy('id')->get();
     }
 
     #[Computed]
@@ -219,7 +219,7 @@ new #[Title('Expenses')] class extends Component {
     private function normalizeFilters(): void
     {
         $this->search = trim($this->search);
-        $this->category = ctype_digit($this->category) && auth()->user()->expenseCategories()->whereKey((int) $this->category)->exists()
+        $this->category = ctype_digit($this->category) && auth()->user()->expenseCategories()->where('is_active', true)->whereKey((int) $this->category)->exists()
             ? (string) (int) $this->category : '';
         $this->source = in_array($this->source, ['manual', 'recurring'], true) ? $this->source : '';
         $this->paymentSource = $this->normalizePaymentSource($this->paymentSource);
@@ -261,12 +261,7 @@ new #[Title('Expenses')] class extends Component {
     </form>
     <div class="grid gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 sm:grid-cols-2 sm:items-end lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.1fr)_minmax(0,.85fr)_minmax(0,.8fr)_auto]">
         <flux:input class="min-w-0" wire:model.live.debounce.350ms="search" label="Search" placeholder="Search expenses..." type="search" />
-        <flux:select wire:model.live="category" label="Category" class="min-w-0">
-            <flux:select.option value="">All categories</flux:select.option>
-            @foreach ($this->categories as $categoryOption)
-                <flux:select.option value="{{ $categoryOption->id }}">{{ $categoryOption->name }}{{ $categoryOption->is_active ? '' : ' (Inactive)' }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <x-category-select class="min-w-0" :categories="$this->categories" model="category" :selected-id="$category" label="Category" />
         <flux:select wire:model.live="source" label="Source" class="min-w-0">
             <flux:select.option value="">All</flux:select.option>
             <flux:select.option value="manual">Manual</flux:select.option>

@@ -442,6 +442,44 @@ class FixedExpensesTest extends TestCase
             ->assertSee('Account rent')->assertSee('Card rent')->assertSee('Cash rent');
     }
 
+    public function test_fixed_expense_category_filter_only_offers_active_owned_categories_and_resets_stale_inactive_selection(): void
+    {
+        $user = User::factory()->create();
+        $active = ExpenseCategory::factory()->for($user)->create(['name' => 'Housing', 'icon' => 'home']);
+        $inactive = ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archive', 'icon' => 'tag']);
+        $foreign = ExpenseCategory::factory()->create(['name' => 'Private']);
+        FixedExpense::factory()->for($user)->for($inactive)->create(['name' => 'Historical fixed expense']);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams(['category' => $inactive->id])->test('pages::fixed-expenses.index');
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $menu = (new \DOMXPath($document))->query('//*[@data-flux-menu]')->item(0);
+
+        $this->assertNotNull($menu);
+        $this->assertStringContainsString('Housing', $menu->textContent);
+        $this->assertStringNotContainsString('Archive', $menu->textContent);
+        $this->assertStringNotContainsString('Private', $page->html());
+        $page->assertSet('category', '')->assertSee('Historical fixed expense')->assertSee('Archive')
+            ->assertSee('color: '.$inactive->safeColor(), false);
+    }
+
+    public function test_fixed_expense_category_form_picker_renders_icons_for_active_and_current_categories(): void
+    {
+        $expense = FixedExpense::factory()->create();
+        $expense->expenseCategory->update(['is_active' => false, 'icon' => 'heart']);
+        ExpenseCategory::factory()->for($expense->user)->create(['name' => 'Housing', 'icon' => 'home']);
+        $this->actingAs($expense->user);
+
+        Livewire::test('pages::fixed-expenses.form', ['fixedExpenseId' => $expense->id])
+            ->assertSee('Housing')->assertSee('Inactive — current category')
+            ->assertSee('color: '.$expense->expenseCategory->safeColor(), false)
+            ->assertSee('data-flux-icon', false)->assertDontSee('Private');
+
+        Livewire::test('pages::fixed-expenses.form')->assertSee('Housing')->assertSee('data-flux-icon', false)
+            ->assertDontSee($expense->expenseCategory->name)->assertDontSee('Inactive — current category');
+    }
+
     public function test_fixed_expense_grid_has_a_distinct_filtered_empty_state(): void
     {
         $expense = FixedExpense::factory()->create(['name' => 'Internet']);
