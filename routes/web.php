@@ -15,6 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
     Route::livewire('reports/cash-flow', 'pages::reports.cash-flow')->name('reports.cash-flow');
     Route::livewire('reports/assets', 'pages::reports.assets')->name('reports.assets');
+    Route::livewire('reports/goals', 'pages::reports.goals')->name('reports.goals');
     Route::livewire('expense-categories', 'pages::expense-categories.index')->name('expense-categories.index');
     Route::livewire('expense-categories/create', 'pages::expense-categories.form')->name('expense-categories.create');
     Route::livewire('expense-categories/{categoryId}/edit', 'pages::expense-categories.form')->whereNumber('categoryId')->name('expense-categories.edit');

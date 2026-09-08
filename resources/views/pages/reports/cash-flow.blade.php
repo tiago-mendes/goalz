@@ -146,6 +146,7 @@ new #[Title('Cash Flow Reports')] class extends Component {
         <nav aria-label="Reports" class="flex flex-wrap gap-2">
             <flux:button variant="primary" :href="route('reports.cash-flow')" wire:navigate>Cash Flow</flux:button>
             <flux:button :href="route('reports.assets')" wire:navigate>Assets</flux:button>
+            <flux:button :href="route('reports.goals')" wire:navigate>Goals</flux:button>
         </nav>
         <form wire:submit="applyPeriod" class="flex flex-wrap items-end gap-3">
             <flux:input wire:model="from" label="From" type="month" min="1000-01" max="9999-12" required />
