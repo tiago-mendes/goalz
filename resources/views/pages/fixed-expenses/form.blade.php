@@ -139,11 +139,7 @@ new #[Title('Manage fixed expense')] class extends Component {
     @endif
     <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="name" label="Name" maxlength="100" required autocomplete="off" />
-        <flux:select wire:model="expense_category_id" label="Category" placeholder="Choose a category" required>
-            @foreach ($this->categories as $category)
-                <flux:select.option :value="$category->id" wire:key="category-{{ $category->id }}">{{ $category->name }}{{ $category->is_active ? '' : ' (Inactive — current category)' }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <x-category-select :categories="$this->categories" model="expense_category_id" :selected-id="$expense_category_id" label="Category" placeholder="Choose a category" required />
         <flux:input wire:model="amount" :label="'Amount ('.\App\Support\CurrencyDisplay::symbol(auth()->user()->currency).')'" inputmode="decimal" placeholder="0.01" required />
         <flux:select wire:model="payment_source" label="Payment source">
             <flux:select.option value="">Not specified</flux:select.option>

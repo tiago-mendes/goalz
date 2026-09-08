@@ -713,6 +713,45 @@ class ExpensesTest extends TestCase
             ->assertDontSee('Foreign expense');
     }
 
+    public function test_expense_category_filter_only_offers_active_owned_categories_and_resets_stale_inactive_selection(): void
+    {
+        $user = User::factory()->create();
+        $active = ExpenseCategory::factory()->for($user)->create(['name' => 'Food', 'icon' => 'shopping-cart']);
+        $inactive = ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archive', 'icon' => 'tag']);
+        $foreign = ExpenseCategory::factory()->create(['name' => 'Private']);
+        Expense::factory()->for($user)->for($inactive)->create(['name' => 'Historical expense']);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams(['month' => '2026-09', 'category' => $inactive->id])
+            ->test('pages::expenses.index');
+        $document = new \DOMDocument;
+        @$document->loadHTML($page->html());
+        $menu = (new \DOMXPath($document))->query('//*[@data-flux-menu]')->item(0);
+
+        $this->assertNotNull($menu);
+        $this->assertStringContainsString('Food', $menu->textContent);
+        $this->assertStringNotContainsString('Archive', $menu->textContent);
+        $this->assertStringNotContainsString('Private', $page->html());
+        $page->assertSet('category', '')->assertSee('Historical expense')->assertSee('Archive')
+            ->assertSee('color: '.$inactive->safeColor(), false);
+    }
+
+    public function test_expense_category_form_picker_renders_icons_for_active_and_current_categories(): void
+    {
+        $expense = Expense::factory()->create();
+        $expense->expenseCategory->update(['is_active' => false, 'icon' => 'heart']);
+        ExpenseCategory::factory()->for($expense->user)->create(['name' => 'Food', 'icon' => 'shopping-cart']);
+        $this->actingAs($expense->user);
+
+        Livewire::test('pages::expenses.form', ['expenseId' => $expense->id])
+            ->assertSee('Food')->assertSee('Inactive — current category')
+            ->assertSee('color: '.$expense->expenseCategory->safeColor(), false)
+            ->assertSee('data-flux-icon', false)->assertDontSee('Private');
+
+        Livewire::test('pages::expenses.form')->assertSee('Food')->assertSee('data-flux-icon', false)
+            ->assertDontSee($expense->expenseCategory->name)->assertDontSee('Inactive — current category');
+    }
+
     /** @param array<string, mixed> $overrides
      * @return array<string, mixed>
      */
