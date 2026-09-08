@@ -143,6 +143,10 @@ new #[Title('Cash Flow Reports')] class extends Component {
             <flux:heading size="xl" level="1">Cash Flow Reports</flux:heading>
             <flux:text>Analyze your persisted income and expense history.</flux:text>
         </div>
+        <nav aria-label="Reports" class="flex flex-wrap gap-2">
+            <flux:button variant="primary" :href="route('reports.cash-flow')" wire:navigate>Cash Flow</flux:button>
+            <flux:button :href="route('reports.assets')" wire:navigate>Assets</flux:button>
+        </nav>
         <form wire:submit="applyPeriod" class="flex flex-wrap items-end gap-3">
             <flux:input wire:model="from" label="From" type="month" min="1000-01" max="9999-12" required />
             <flux:input wire:model="to" label="To" type="month" min="1000-01" max="9999-12" required />
