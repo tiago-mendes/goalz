@@ -29,11 +29,20 @@ const registerCashFlowCharts = (Alpine) => {
                 ? ['assetTypes', 'distribution', 'allocation', 'evolution']
                 : reportType === 'goals'
                     ? ['progress', 'fundingSources']
+                    : reportType === 'credit-cards'
+                        ? ['monthly', 'cards', 'categories', 'bills']
                     : ['monthly', 'categories', 'sources', 'evolution'];
 
             if (requiredSections.some((section) => !data?.[section])) {
                 return;
             }
+
+            Object.entries(this.charts).forEach(([id, chart]) => {
+                if (!document.getElementById(id)) {
+                    chart.destroy();
+                    delete this.charts[id];
+                }
+            });
 
             const definitions = reportType === 'assets' ? {
                 'assets-by-type-chart': {
@@ -75,6 +84,27 @@ const registerCashFlowCharts = (Alpine) => {
                     type: 'doughnut',
                     labels: data.fundingSources.labels,
                     datasets: [{ label: 'Allocated', data: data.fundingSources.amounts, backgroundColor: accountDistributionPalette }],
+                },
+            } : reportType === 'credit-cards' ? {
+                'credit-card-monthly-spending-chart': {
+                    type: 'line',
+                    labels: data.monthly.labels,
+                    datasets: [{ label: 'Spending', data: data.monthly.amounts, borderColor: '#315d40', backgroundColor: '#315d40' }],
+                },
+                'credit-card-spending-by-card-chart': {
+                    type: 'doughnut',
+                    labels: data.cards.labels,
+                    datasets: [{ label: 'Amount', data: data.cards.amounts, backgroundColor: accountDistributionPalette }],
+                },
+                'credit-card-spending-by-category-chart': {
+                    type: 'pie',
+                    labels: data.categories.labels,
+                    datasets: [{ label: 'Amount', data: data.categories.amounts, backgroundColor: data.categories.colors }],
+                },
+                'credit-card-bill-evolution-chart': {
+                    type: 'bar',
+                    labels: data.bills.labels,
+                    datasets: [{ label: 'Calculated Bills', data: data.bills.amounts, backgroundColor: '#2563eb' }],
                 },
             } : {
                 'income-expenses-chart': {
