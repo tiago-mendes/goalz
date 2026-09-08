@@ -137,7 +137,7 @@ class GoalsReportsTest extends TestCase
             ->assertSeeText('No goals yet.');
     }
 
-    public function test_goal_reports_exclude_a_foreign_account_allocation_from_an_owned_goal(): void
+    public function test_goal_reports_include_all_goal_funding_but_hide_an_unrelated_account_source(): void
     {
         $user = User::factory()->create();
         $other = User::factory()->create();
@@ -149,7 +149,7 @@ class GoalsReportsTest extends TestCase
         $page = Livewire::test('pages::reports.goals');
         $report = $page->get('report');
 
-        $this->assertSame('0.00', $report['goals'][0]['allocated']);
+        $this->assertSame('999.00', $report['goals'][0]['allocated']);
         $this->assertSame([], $report['fundingSources']);
         $this->assertSame('0.00', $report['fundingTotal']);
         $page->assertDontSeeText('Private Account');

@@ -90,6 +90,12 @@ class User extends Authenticatable
         return $this->hasMany(Goal::class);
     }
 
+    /** @return HasMany<GoalMembership, $this> */
+    public function sharedGoalMemberships(): HasMany
+    {
+        return $this->hasMany(GoalMembership::class);
+    }
+
     /**
      * Get the user's initials
      */

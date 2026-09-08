@@ -147,8 +147,8 @@ new #[Title('Monthly Overview')] class extends Component {
     #[Computed]
     public function goals(): Collection
     {
-        return auth()->user()->goals()
-            ->with('goalAccountAllocations')
+        return Goal::query()->accessibleTo(auth()->user())
+            ->with(['goalAccountAllocations:id,goal_id,amount', 'owner:id,name'])
             ->whereIn('status', [GoalStatus::Active->value, GoalStatus::Paused->value])
             ->orderByRaw("CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END")
             ->orderBy('name')
@@ -307,7 +307,7 @@ new #[Title('Monthly Overview')] class extends Component {
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                         @forelse ($this->goals as $goal)
                             <tr wire:key="dashboard-goal-{{ $goal->id }}">
-                                <td class="px-4 py-3 font-medium">{{ $goal->name }}</td>
+                                <td class="px-4 py-3 font-medium"><span class="inline-flex flex-wrap items-center gap-2">{{ $goal->name }} @if (! $goal->isOwnedBy(auth()->user()))<flux:badge color="blue">Shared</flux:badge><span class="text-xs font-normal text-zinc-600 dark:text-zinc-400">Owner: {{ $goal->owner->name }}</span>@endif</span></td>
                                 <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->target_amount }}</td>
                                 <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $goal->allocatedAmount() }}</td>
                                 <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ BigDecimal::of($goal->remainingAmount())->isNegative() ? 'Overfunded · '.auth()->user()->currency.' '.$goal->overfundedAmount() : auth()->user()->currency.' '.$goal->remainingAmount() }}</td>

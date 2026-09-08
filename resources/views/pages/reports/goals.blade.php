@@ -58,7 +58,7 @@ new #[Title('Goals Reports')] class extends Component {
                 'allocated' => array_map($numeric, array_column($report['goals'], 'allocated')),
             ],
             'fundingSources' => [
-                'labels' => array_column($report['fundingSources'], 'name'),
+                'labels' => array_map(fn (array $source): string => $source['group'].' · '.$source['name'], $report['fundingSources']),
                 'amounts' => array_map($numeric, array_column($report['fundingSources'], 'allocated')),
             ],
         ];
@@ -113,7 +113,7 @@ new #[Title('Goals Reports')] class extends Component {
     <section class="space-y-4" aria-labelledby="goal-funding-sources-heading">
         <div class="space-y-1">
             <flux:heading size="lg" level="2" id="goal-funding-sources-heading">Goal Funding Sources</flux:heading>
-            <flux:text>See which accounts currently fund the selected goal.</flux:text>
+            <flux:text>Your Accounts are shown individually. Other members are shown only by contribution total.</flux:text>
         </div>
 
         @if ($this->report['selectedGoal'] === null)
@@ -136,11 +136,11 @@ new #[Title('Goals Reports')] class extends Component {
                 <flux:text class="sm:col-span-4">Status: {{ $this->report['selectedSummary']['status'] }}@if ($this->report['selectedSummary']['overfunded'] !== '0.00') · Overfunded by {{ auth()->user()->currency }} {{ $this->report['selectedSummary']['overfunded'] }}@endif</flux:text>
             </div>
 
-            <x-reports.chart-panel wire:key="goal-funding-sources-chart-panel-{{ $this->goalId }}" title="Current Allocation Distribution" description="Actual persisted allocations by account; unallocated money is not represented as an account." :canvas="$this->report['fundingSources'] !== [] ? 'goal-funding-sources-chart' : null">
+            <x-reports.chart-panel wire:key="goal-funding-sources-chart-panel-{{ $this->goalId }}" title="Current Allocation Distribution" description="Your Accounts and privacy-safe totals from other members; unallocated money is not represented." :canvas="$this->report['fundingSources'] !== [] ? 'goal-funding-sources-chart' : null">
                 @if ($this->report['fundingSources'] === [])
                     <flux:text>This goal has no current account allocations.</flux:text>
                 @endif
-                <div class="overflow-x-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Goal Funding Sources data</caption><thead><tr><th scope="col" class="px-4 py-3">Account</th><th scope="col" class="px-4 py-3">Type</th><th scope="col" class="px-4 py-3 text-right">Allocated</th><th scope="col" class="px-4 py-3 text-right">Share of Goal Funding</th><th scope="col" class="px-4 py-3">Status</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['fundingSources'] as $source)<tr wire:key="goal-funding-source-{{ $source['key'] }}"><th scope="row" class="px-4 py-3 font-normal">{{ $source['name'] }}</th><td class="px-4 py-3">{{ $source['type'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $source['allocated'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ $source['share'] }}%</td><td class="px-4 py-3">{{ $source['isActive'] ? 'Active' : 'Inactive' }}</td></tr>@empty<tr><td colspan="5" class="px-4 py-6"><flux:text>No current account allocations are available.</flux:text></td></tr>@endforelse</tbody></table></div>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Goal Funding Sources data</caption><thead><tr><th scope="col" class="px-4 py-3">Group</th><th scope="col" class="px-4 py-3">Source</th><th scope="col" class="px-4 py-3">Details</th><th scope="col" class="px-4 py-3 text-right">Allocated</th><th scope="col" class="px-4 py-3 text-right">Share of Goal Funding</th><th scope="col" class="px-4 py-3">Status</th></tr></thead><tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">@forelse ($this->report['fundingSources'] as $source)<tr wire:key="goal-funding-source-{{ $source['key'] }}"><td class="px-4 py-3">{{ $source['group'] }}</td><th scope="row" class="px-4 py-3 font-normal">{{ $source['name'] }}</th><td class="px-4 py-3">{{ $source['type'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ auth()->user()->currency }} {{ $source['allocated'] }}</td><td class="px-4 py-3 text-right tabular-nums">{{ $source['share'] }}%</td><td class="px-4 py-3">{{ $source['isActive'] === null ? '—' : ($source['isActive'] ? 'Active' : 'Inactive') }}</td></tr>@empty<tr><td colspan="6" class="px-4 py-6"><flux:text>No current account allocations are available.</flux:text></td></tr>@endforelse</tbody></table></div>
             </x-reports.chart-panel>
         @endif
     </section>

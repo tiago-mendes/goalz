@@ -22,7 +22,7 @@ class SaveGoalAccountAllocation
             $account = Account::query()->whereKey($accountId)->whereBelongsTo($user)->lockForUpdate()->first();
             abort_if($account === null, 404);
 
-            $goal = Goal::query()->whereKey($goalId)->whereBelongsTo($user)->lockForUpdate()->first();
+            $goal = Goal::query()->whereKey($goalId)->accessibleTo($user)->lockForUpdate()->first();
             abort_if($goal === null, 404);
 
             $allocation = $allocationId === null
