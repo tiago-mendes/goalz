@@ -175,7 +175,8 @@ class GoalsTest extends TestCase
 
         $page->assertSeeText('BRL 125.25 / 400.00 · 31.3%')
             ->assertSee('aria-label="Total funding progress"', escape: false)
-            ->assertSee('aria-valuenow="31.3"', escape: false);
+            ->assertSee('aria-valuenow="31.3"', escape: false)
+            ->assertSee('bg-yellow-400', escape: false);
         $this->assertSame('400.00', $page->get('totalTarget'));
         $this->assertSame('125.25', $page->get('totalAllocated'));
         $this->assertSame('31.3', $page->get('totalProgressPercentage'));

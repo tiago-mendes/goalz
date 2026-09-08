@@ -4,6 +4,7 @@ use App\Actions\MaterializeFixedExpensesForMonth;
 use App\Actions\ProjectCreditCardBill;
 use App\Actions\ResolveMonthlyIncome;
 use App\BillingCycleResolver;
+use App\GoalProgressColor;
 use App\GoalStatus;
 use App\Models\Account;
 use App\Models\CreditCard;
@@ -313,7 +314,7 @@ new #[Title('Monthly Overview')] class extends Component {
                                 <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">{{ BigDecimal::of($goal->remainingAmount())->isNegative() ? 'Overfunded · '.auth()->user()->currency.' '.$goal->overfundedAmount() : auth()->user()->currency.' '.$goal->remainingAmount() }}</td>
                                 <td class="min-w-40 px-4 py-3">
                                     <div class="flex items-center gap-2">
-                                        <div class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full bg-green-600" style="width: {{ $goal->visualProgressPercentage() }}%"></div></div>
+                                        <div class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="{{ $goal->name }} funding progress" aria-valuenow="{{ $goal->visualProgressPercentage() }}" aria-valuemin="0" aria-valuemax="100"><div class="h-full rounded-full {{ GoalProgressColor::classes($goal->progressPercentage()) }}" style="width: {{ $goal->visualProgressPercentage() }}%"></div></div>
                                         <span class="tabular-nums">{{ $goal->progressPercentage() }}%</span>
                                     </div>
                                 </td>

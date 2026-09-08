@@ -142,7 +142,16 @@ new #[Title('Credit card bill')] class extends Component {
                     <tr wire:key="bill-expense-{{ $expense->id }}">
                         <td class="whitespace-nowrap px-4 py-3">{{ $expense->expense_date->toDateString() }}</td>
                         <td class="px-4 py-3">{{ $expense->name }}</td>
-                        <td class="px-4 py-3">{{ $expense->expenseCategory?->name ?? 'Category unavailable' }}</td>
+                        <td class="px-4 py-3">
+                            @if ($category = $expense->expenseCategory)
+                                <span class="inline-flex items-center gap-2">
+                                    <span class="shrink-0" style="color: {{ $category->safeColor() }}" aria-hidden="true"><flux:icon :name="$category->safeIcon()" class="size-5" /></span>
+                                    <span>{{ $category->name }}</span>
+                                </span>
+                            @else
+                                Category unavailable
+                            @endif
+                        </td>
                         <td class="whitespace-nowrap px-4 py-3 tabular-nums">{{ auth()->user()->currency }} {{ $expense->amount }}</td>
                     </tr>
                 @empty
