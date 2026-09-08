@@ -11,6 +11,7 @@ use App\Models\CreditCard;
 use App\Models\Expense;
 use App\Models\Goal;
 use App\Models\MonthlyIncome;
+use App\Reports\BudgetReport;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -50,6 +51,7 @@ new #[Title('Monthly Overview')] class extends Component {
         $this->resetValidation();
         unset($this->income, $this->expenses, $this->actualTotal, $this->expenseBreakdown, $this->remaining);
         unset($this->accounts, $this->financialPosition, $this->goals, $this->creditCardBills);
+        unset($this->budgetOverview);
     }
 
     #[Computed]
@@ -102,6 +104,12 @@ new #[Title('Monthly Overview')] class extends Component {
     public function remaining(): ?string
     {
         return $this->income === null ? null : (string) BigDecimal::of($this->income->amount)->minus($this->actualTotal)->toScale(2);
+    }
+
+    #[Computed]
+    public function budgetOverview(): array
+    {
+        return app(BudgetReport::class)->handle(auth()->user(), CarbonImmutable::createFromFormat('!Y-m', $this->selectedMonth));
     }
 
     /** @return Collection<int, Account> */
@@ -279,6 +287,11 @@ new #[Title('Monthly Overview')] class extends Component {
                 </table>
             </div>
         </div>
+    </section>
+
+    <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="budget-overview-heading">
+        <div class="flex flex-wrap items-center justify-between gap-3"><div><flux:heading size="lg" level="2" id="budget-overview-heading">Budget Overview</flux:heading><flux:text>Budget usage for the selected month.</flux:text></div><div class="flex items-center gap-2"><flux:link :href="route('reports.budgets', ['month' => $selectedMonth])" wire:navigate>View budget report</flux:link><flux:link :href="route('budgets.index')" wire:navigate>Manage budgets</flux:link><button type="button" class="inline-flex items-center rounded-lg p-2 text-zinc-700 hover:bg-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-accent dark:text-zinc-200 dark:hover:bg-zinc-800" x-bind:aria-expanded="isOpen" x-bind:aria-label="isOpen ? 'Collapse Budget Overview' : 'Expand Budget Overview'" aria-controls="budget-overview-content" @click="isOpen = !isOpen"><flux:icon.chevron-up x-show="isOpen" class="size-5" aria-hidden="true" /><flux:icon.chevron-down x-show="!isOpen" class="size-5" aria-hidden="true" /><span class="sr-only" x-text="isOpen ? 'Collapse Budget Overview' : 'Expand Budget Overview'"></span></button></div></div>
+        <div id="budget-overview-content" x-show="isOpen" class="space-y-4"><div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">@foreach ([['Total Budget', 'totalBudget'], ['Budgeted Spending', 'budgetedSpending'], ['Remaining', 'remaining'], ['Overall Usage', 'overallUsage']] as [$label, $key])<div class="space-y-1 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"><flux:text>{{ $label }}</flux:text><p class="font-semibold tabular-nums">{{ $key === 'overallUsage' ? $this->budgetOverview[$key].'%' : auth()->user()->currency.' '.$this->budgetOverview[$key] }}</p></div>@endforeach</div>@if ($this->budgetOverview['rows'] === [])<flux:text>No budgets for this month.</flux:text>@else<ul class="space-y-2">@foreach (array_filter($this->budgetOverview['rows'], fn (array $row): bool => $row['status'] === 'Over budget') as $row)<li class="flex flex-wrap justify-between gap-2 text-sm"><span>{{ $row['category']->name }}</span><span class="tabular-nums text-red-600 dark:text-red-400">{{ $row['usage'] }}% · {{ auth()->user()->currency }} {{ $row['overBudget'] }} over budget</span></li>@endforeach</ul>@endif</div>
     </section>
 
     <section x-data="{ isOpen: true }" x-bind:class="{ 'bg-white dark:bg-zinc-900': isOpen, 'bg-zinc-50 dark:bg-zinc-800': !isOpen }" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700" aria-labelledby="goals-heading">

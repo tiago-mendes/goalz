@@ -142,6 +142,7 @@ new #[Title('Credit Card Reports')] class extends Component {
             <flux:button :href="route('reports.assets')" wire:navigate>Assets</flux:button>
             <flux:button :href="route('reports.goals')" wire:navigate>Goals</flux:button>
             <flux:button variant="primary" :href="route('reports.credit-cards')" wire:navigate>Credit Cards</flux:button>
+            <flux:button :href="route('reports.budgets')" wire:navigate>Budgets</flux:button>
         </nav>
     </div>
 
