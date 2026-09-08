@@ -27,7 +27,9 @@ const registerCashFlowCharts = (Alpine) => {
         render(data) {
             const requiredSections = reportType === 'assets'
                 ? ['assetTypes', 'distribution', 'allocation', 'evolution']
-                : ['monthly', 'categories', 'sources', 'evolution'];
+                : reportType === 'goals'
+                    ? ['progress', 'fundingSources']
+                    : ['monthly', 'categories', 'sources', 'evolution'];
 
             if (requiredSections.some((section) => !data?.[section])) {
                 return;
@@ -58,6 +60,21 @@ const registerCashFlowCharts = (Alpine) => {
                     type: 'line',
                     labels: data.evolution.labels,
                     datasets: [{ label: 'Balance', data: data.evolution.amounts, borderColor: '#315d40', backgroundColor: '#315d40' }],
+                },
+            } : reportType === 'goals' ? {
+                'goal-progress-chart': {
+                    type: 'bar',
+                    indexAxis: 'y',
+                    labels: data.progress.labels,
+                    datasets: [
+                        { label: 'Target', data: data.progress.targets, backgroundColor: '#2563eb' },
+                        { label: 'Allocated', data: data.progress.allocated, backgroundColor: '#315d40' },
+                    ],
+                },
+                'goal-funding-sources-chart': {
+                    type: 'doughnut',
+                    labels: data.fundingSources.labels,
+                    datasets: [{ label: 'Allocated', data: data.fundingSources.amounts, backgroundColor: accountDistributionPalette }],
                 },
             } : {
                 'income-expenses-chart': {

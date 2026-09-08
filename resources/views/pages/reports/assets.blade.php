@@ -151,6 +151,7 @@ new #[Title('Assets Reports')] class extends Component {
         <nav aria-label="Reports" class="flex flex-wrap gap-2">
             <flux:button :href="route('reports.cash-flow')" wire:navigate>Cash Flow</flux:button>
             <flux:button variant="primary" :href="route('reports.assets')" wire:navigate>Assets</flux:button>
+            <flux:button :href="route('reports.goals')" wire:navigate>Goals</flux:button>
         </nav>
     </div>
 
