@@ -1,7 +1,18 @@
 import { Chart } from 'chart.js/auto';
 
+const accountDistributionPalette = [
+    '#315D40',
+    '#2563EB',
+    '#7C3AED',
+    '#B45309',
+    '#0F766E',
+    '#BE185D',
+    '#4F46E5',
+    '#65A30D',
+];
+
 const registerCashFlowCharts = (Alpine) => {
-    Alpine.data('cashFlowCharts', (initialData) => ({
+    Alpine.data('cashFlowCharts', (initialData, reportType = 'cash-flow') => ({
         charts: {},
 
         init() {
@@ -14,11 +25,41 @@ const registerCashFlowCharts = (Alpine) => {
         },
 
         render(data) {
-            if (!data?.monthly || !data?.categories || !data?.sources || !data?.evolution) {
+            const requiredSections = reportType === 'assets'
+                ? ['assetTypes', 'distribution', 'allocation', 'evolution']
+                : ['monthly', 'categories', 'sources', 'evolution'];
+
+            if (requiredSections.some((section) => !data?.[section])) {
                 return;
             }
 
-            const definitions = {
+            const definitions = reportType === 'assets' ? {
+                'assets-by-type-chart': {
+                    type: 'doughnut',
+                    labels: data.assetTypes.labels,
+                    datasets: [{ label: 'Amount', data: data.assetTypes.amounts, backgroundColor: data.assetTypes.colors }],
+                },
+                'account-distribution-chart': {
+                    type: 'bar',
+                    indexAxis: 'y',
+                    labels: data.distribution.labels,
+                    datasets: [{
+                        label: 'Balance',
+                        data: data.distribution.amounts,
+                        backgroundColor: data.distribution.labels.map((_, index) => accountDistributionPalette[index % accountDistributionPalette.length]),
+                    }],
+                },
+                'asset-allocation-chart': {
+                    type: 'bar',
+                    labels: data.allocation.labels,
+                    datasets: [{ label: 'Amount', data: data.allocation.amounts, backgroundColor: ['#315d40', '#2563eb', '#b45309'] }],
+                },
+                'account-balance-evolution-chart': {
+                    type: 'line',
+                    labels: data.evolution.labels,
+                    datasets: [{ label: 'Balance', data: data.evolution.amounts, borderColor: '#315d40', backgroundColor: '#315d40' }],
+                },
+            } : {
                 'income-expenses-chart': {
                     type: 'line',
                     labels: data.monthly.labels,
@@ -65,7 +106,10 @@ const registerCashFlowCharts = (Alpine) => {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: { legend: { position: 'bottom' } },
-                        scales: ['pie', 'doughnut'].includes(definition.type) ? {} : { y: { beginAtZero: true } },
+                        indexAxis: definition.indexAxis,
+                        scales: ['pie', 'doughnut'].includes(definition.type)
+                            ? {}
+                            : { [definition.indexAxis === 'y' ? 'x' : 'y']: { beginAtZero: true } },
                     },
                 });
             });
