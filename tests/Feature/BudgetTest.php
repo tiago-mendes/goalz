@@ -152,13 +152,13 @@ class BudgetTest extends TestCase
     public function test_budget_create_page_renders_owned_active_categories(): void
     {
         $user = User::factory()->create();
-        $active = ExpenseCategory::factory()->for($user)->create(['name' => 'Food']);
+        $active = ExpenseCategory::factory()->for($user)->create(['name' => 'Food', 'icon' => 'shopping-cart']);
         $foreign = ExpenseCategory::factory()->create(['name' => 'Private']);
         ExpenseCategory::factory()->for($user)->inactive()->create(['name' => 'Archived']);
         $this->actingAs($user);
 
         $this->get(route('budgets.create'))->assertOk()->assertSeeText('Food')->assertDontSeeText('Private')->assertDontSeeText('Archived');
-        Livewire::test('pages::budgets.form')->assertSee($active->name)->assertDontSee($foreign->name);
+        Livewire::test('pages::budgets.form')->assertSee($active->name)->assertSee('data-flux-icon', false)->assertDontSee($foreign->name);
     }
 
     public function test_budget_form_does_not_offer_inactive_category_for_create(): void
@@ -174,12 +174,34 @@ class BudgetTest extends TestCase
     {
         $this->travelTo('2026-09-08');
         $user = User::factory()->create();
-        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Historical']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Historical', 'icon' => 'heart']);
         $budget = app(SaveBudget::class)->handle($user, $category, '500.00', BudgetMode::Recurring, '2026-09');
         $category->update(['is_active' => false]);
         $this->actingAs($user);
 
         $this->get(route('budgets.edit', $budget->id))->assertOk()->assertSeeText('Historical');
-        Livewire::test('pages::budgets.form', ['budgetId' => $budget->id])->assertSee($category->name);
+        Livewire::test('pages::budgets.form', ['budgetId' => $budget->id])
+            ->assertSee($category->name)->assertSee('aria-label="Historical"', false)
+            ->assertSee('color: '.$category->safeColor(), false)->assertSee('data-flux-icon', false);
+    }
+
+    public function test_budget_form_selection_saves_the_selected_owned_category(): void
+    {
+        $this->travelTo('2026-09-09');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Food']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::budgets.form')
+            ->set('expense_category_id', $category->id)
+            ->set('amount', '500.00')
+            ->set('startsMonth', '2026-09')
+            ->call('save')->assertHasNoErrors();
+
+        $this->assertDatabaseHas('budget_rules', [
+            'user_id' => $user->id,
+            'expense_category_id' => $category->id,
+            'amount' => '500.00',
+        ]);
     }
 }
