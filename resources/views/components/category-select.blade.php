@@ -5,6 +5,7 @@
     'label' => 'Category',
     'placeholder' => 'Choose a category',
     'required' => false,
+    'fullWidth' => false,
 ])
 
 @php
@@ -14,7 +15,7 @@
 <flux:field {{ $attributes }}>
     <flux:label>{{ $label }}</flux:label>
     <input type="hidden" wire:model="{{ $model }}" />
-    <flux:dropdown class="w-full">
+    <flux:dropdown class="{{ $fullWidth ? 'block w-full' : 'w-full' }}">
         <flux:button
             type="button"
             class="w-full justify-between"
@@ -31,7 +32,7 @@
                 @endif
             </span>
         </flux:button>
-        <flux:menu class="max-h-72 overflow-y-auto">
+        <flux:menu class="{{ $fullWidth ? 'w-fit [:where(&)]:min-w-72' : '' }} max-h-72 overflow-y-auto">
             @if (! $required)
                 <flux:menu.item wire:click="$set('{{ $model }}', '')">{{ $model === 'category' ? 'All categories' : $placeholder }}</flux:menu.item>
             @endif
