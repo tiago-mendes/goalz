@@ -128,6 +128,7 @@ class CreditCardBillsTest extends TestCase
 
     public function test_historical_bill_selection_uses_due_month_and_remains_available_for_inactive_card(): void
     {
+        $this->travelTo('2026-11-01 12:00:00');
         $card = CreditCard::factory()->inactive()->create(['cycle_start_day' => 13, 'due_day' => 20]);
         Expense::factory()->for($card->user)->create([
             'credit_card_id' => $card->id,
@@ -145,6 +146,59 @@ class CreditCardBillsTest extends TestCase
             ->assertSeeText('2026-10-20')
             ->assertSeeText('R$ 75.25')
             ->assertSeeText('Inactive');
+    }
+
+    public function test_itau_bill_due_month_keeps_index_detail_rows_and_total_on_the_same_configured_cycle(): void
+    {
+        $this->travelTo('2026-09-15 12:00:00');
+        $card = CreditCard::factory()->create([
+            'name' => 'Itaú Multi Black',
+            'cycle_start_day' => 10,
+            'due_day' => 20,
+        ]);
+        $datesAndAmounts = [
+            '2026-08-10' => '1.00',
+            '2026-08-11' => '2.00',
+            '2026-09-09' => '3.00',
+            '2026-09-10' => '4.00',
+            '2026-09-11' => '5.00',
+            '2026-09-12' => '6.00',
+            '2026-09-13' => '7.00',
+        ];
+        $expenses = collect($datesAndAmounts)->map(function (string $amount, string $date) use ($card): Expense {
+            return Expense::factory()->for($card->user)->create([
+                'name' => 'Expense '.$date,
+                'credit_card_id' => $card->id,
+                'expense_date' => $date,
+                'amount' => $amount,
+            ]);
+        });
+        $this->actingAs($card->user);
+
+        $this->get(route('credit-cards.show', ['creditCardId' => $card->id, 'month' => '2026-10']))
+            ->assertSeeText('2026-09-10 – 2026-10-09')
+            ->assertSeeText('2026-10-20')
+            ->assertDontSeeText('2026-09-20');
+
+        Livewire::test('pages::credit-cards.index')
+            ->assertSeeText('R$ 22.00')
+            ->assertSeeText('2026-10-20')
+            ->assertSee(route('credit-cards.show', ['creditCardId' => $card->id, 'month' => '2026-10']), escape: false);
+
+        $page = Livewire::withQueryParams(['month' => '2026-10'])
+            ->test('pages::credit-cards.show', ['creditCardId' => $card->id])
+            ->assertSet('billMonth', '2026-10')
+            ->assertSet('selectedBillMonth', '2026-10')
+            ->assertSeeText('2026-09-10 – 2026-10-09')
+            ->assertSeeText('2026-10-20')
+            ->assertSeeText('R$ 22.00')
+            ->assertSeeText(['Expense 2026-09-10', 'Expense 2026-09-11', 'Expense 2026-09-12', 'Expense 2026-09-13'])
+            ->assertDontSeeText(['Expense 2026-08-10', 'Expense 2026-08-11', 'Expense 2026-09-09', '2026-09-20']);
+
+        $this->assertSame(
+            $expenses->slice(3)->pluck('id')->values()->all(),
+            $page->get('bill')->expenses->pluck('id')->all(),
+        );
     }
 
     public function test_bill_expenses_render_safe_category_icons_and_unavailable_fallbacks(): void

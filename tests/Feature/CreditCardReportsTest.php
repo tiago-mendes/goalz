@@ -6,6 +6,7 @@ use App\AccountType;
 use App\Models\Account;
 use App\Models\AccountBalanceSnapshot;
 use App\Models\CreditCard;
+use App\Models\CreditCardBillPeriod;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\FixedExpense;
@@ -110,6 +111,70 @@ class CreditCardReportsTest extends TestCase
         $this->assertSame(['2026-09-01 – 2026-09-30', '2026-09-13 – 2026-10-12'], array_column($report['bills'], 'cycle'));
         $this->assertSame(3, $user->expenses()->count());
         $this->assertSame(1, $user->fixedExpenses()->count());
+    }
+
+    public function test_calculated_bill_report_uses_the_same_inclusive_configured_window_as_bill_detail(): void
+    {
+        $user = User::factory()->create();
+        $card = CreditCard::factory()->for($user)->create([
+            'name' => 'Itaú Multi Black',
+            'cycle_start_day' => 10,
+            'due_day' => 20,
+        ]);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-09', 'amount' => '100.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-10', 'amount' => '0.10']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-10-09', 'amount' => '0.20']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-10-10', 'amount' => '200.00']);
+        FixedExpense::factory()->for($user)->create([
+            'credit_card_id' => $card->id,
+            'start_date' => '2026-10-01',
+            'day_of_month' => 5,
+            'amount' => '999.00',
+        ]);
+        $this->actingAs($user);
+
+        $report = Livewire::withQueryParams([
+            'from' => '2026-10',
+            'to' => '2026-10',
+            'billCardId' => $card->id,
+        ])->test('pages::reports.credit-cards')->get('report');
+
+        $this->assertSame('0.30', $report['billMonths'][0]['amount']);
+        $this->assertSame('2026-09-10 – 2026-10-09', $report['bills'][0]['cycle']);
+        $this->assertSame('2026-10-20', $report['bills'][0]['dueDate']);
+        $this->assertSame('0.30', $report['bills'][0]['amount']);
+        $this->assertSame(4, $user->expenses()->count());
+    }
+
+    public function test_calculated_bill_report_honors_a_due_month_override_without_materializing_expenses(): void
+    {
+        $user = User::factory()->create();
+        $card = CreditCard::factory()->for($user)->create(['cycle_start_day' => 10, 'due_day' => 20]);
+        $period = CreditCardBillPeriod::factory()->for($card)->create([
+            'due_year' => 2026,
+            'due_month' => 9,
+            'start_date' => '2026-08-11',
+            'end_date' => '2026-09-12',
+        ]);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-08-10', 'amount' => '100.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-08-11', 'amount' => '0.10']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-12', 'amount' => '0.20']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-13', 'amount' => '200.00']);
+        FixedExpense::factory()->for($user)->create(['credit_card_id' => $card->id, 'start_date' => '2026-09-01', 'amount' => '999.00']);
+        $this->actingAs($user);
+
+        $report = Livewire::withQueryParams([
+            'from' => '2026-09',
+            'to' => '2026-09',
+            'billCardId' => $card->id,
+        ])->test('pages::reports.credit-cards')->get('report');
+
+        $this->assertSame('0.30', $report['billMonths'][0]['amount']);
+        $this->assertSame('2026-08-11 – 2026-09-12', $report['bills'][0]['cycle']);
+        $this->assertSame('2026-09-20', $report['bills'][0]['dueDate']);
+        $this->assertSame('0.30', $report['bills'][0]['amount']);
+        $this->assertSame(4, $user->expenses()->count());
+        $this->assertModelExists($period);
     }
 
     public function test_calculated_bill_card_selector_preserves_owned_inactive_cards_and_rejects_foreign_cards(): void

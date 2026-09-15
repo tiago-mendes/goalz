@@ -6,6 +6,7 @@ use App\Actions\CalculateCreditCardBill;
 use App\BillingCycleResolver;
 use App\Models\Account;
 use App\Models\CreditCard;
+use App\Models\CreditCardBillPeriod;
 use App\Models\Expense;
 use App\Models\FixedExpense;
 use Carbon\CarbonImmutable;
@@ -98,11 +99,32 @@ class CreditCardsMariaDbTest extends TestCase
         $this->assertSame('19999999999999.98', $bill->total);
     }
 
+    public function test_bill_period_database_constraints_reject_duplicates_and_reversed_dates(): void
+    {
+        $card = CreditCard::factory()->create();
+        CreditCardBillPeriod::factory()->for($card)->create();
+
+        try {
+            CreditCardBillPeriod::factory()->for($card)->create();
+            $this->fail('Expected the due-month unique constraint to reject a duplicate period.');
+        } catch (QueryException) {
+            $this->assertSame(1, $card->billPeriods()->count());
+        }
+
+        $this->expectException(QueryException::class);
+        CreditCardBillPeriod::factory()->for($card)->create([
+            'due_month' => 10,
+            'start_date' => '2026-10-12',
+            'end_date' => '2026-10-11',
+        ]);
+    }
+
     public function test_whole_user_deletion_removes_payment_sources_and_references_safely(): void
     {
         $fixedExpense = FixedExpense::factory()->create();
         $account = Account::factory()->for($fixedExpense->user)->create();
         $card = CreditCard::factory()->for($fixedExpense->user)->create();
+        CreditCardBillPeriod::factory()->for($card)->create();
         $fixedExpense->update(['credit_card_id' => $card->id]);
         Expense::factory()->for($fixedExpense->user)->create(['payment_account_id' => $account->id]);
         $this->actingAs($fixedExpense->user);
@@ -115,6 +137,7 @@ class CreditCardsMariaDbTest extends TestCase
 
         $this->assertDatabaseMissing('users', ['id' => $fixedExpense->user_id]);
         $this->assertDatabaseMissing('credit_cards', ['user_id' => $fixedExpense->user_id]);
+        $this->assertDatabaseMissing('credit_card_bill_periods', ['credit_card_id' => $card->id]);
         $this->assertDatabaseMissing('accounts', ['user_id' => $fixedExpense->user_id]);
         $this->assertDatabaseMissing('fixed_expenses', ['user_id' => $fixedExpense->user_id]);
         $this->assertDatabaseMissing('expenses', ['user_id' => $fixedExpense->user_id]);

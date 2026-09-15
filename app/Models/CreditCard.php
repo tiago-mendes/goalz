@@ -42,4 +42,10 @@ class CreditCard extends Model
     {
         return $this->hasMany(FixedExpense::class);
     }
+
+    /** @return HasMany<CreditCardBillPeriod, $this> */
+    public function billPeriods(): HasMany
+    {
+        return $this->hasMany(CreditCardBillPeriod::class);
+    }
 }

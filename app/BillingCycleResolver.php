@@ -2,12 +2,23 @@
 
 namespace App;
 
+use App\Models\CreditCard;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 use LogicException;
 
 final class BillingCycleResolver
 {
+    public function currentFor(CreditCard $creditCard, CarbonImmutable $today): BillingCycle
+    {
+        return $this->current($creditCard->cycle_start_day, $creditCard->due_day, $today);
+    }
+
+    public function dueInFor(CreditCard $creditCard, CarbonImmutable $dueMonth): BillingCycle
+    {
+        return $this->dueIn($dueMonth, $creditCard->cycle_start_day, $creditCard->due_day);
+    }
+
     public function containing(CarbonImmutable $date, int $cycleStartDay, int $dueDay): BillingCycle
     {
         $this->guardDays($cycleStartDay, $dueDay);

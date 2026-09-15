@@ -24,7 +24,7 @@ new #[Title('Credit Cards')] class extends Component {
         $months = [];
 
         foreach (auth()->user()->creditCards()->get() as $creditCard) {
-            $cycle = $resolver->current($creditCard->cycle_start_day, $creditCard->due_day, CarbonImmutable::today());
+            $cycle = $resolver->currentFor($creditCard, CarbonImmutable::today());
             foreach ($cycle->intersectingMonths() as $month) {
                 $months[$month->format('Y-m')] = $month;
             }
@@ -56,7 +56,7 @@ new #[Title('Credit Cards')] class extends Component {
         $bills = [];
 
         foreach ($this->creditCards as $creditCard) {
-            $cycle = $resolver->current($creditCard->cycle_start_day, $creditCard->due_day, $today);
+            $cycle = $resolver->currentFor($creditCard, $today);
             $bills[$creditCard->id] = $calculator->handle(auth()->user(), $creditCard, $cycle);
         }
 
