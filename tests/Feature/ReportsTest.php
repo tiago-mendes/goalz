@@ -48,16 +48,63 @@ class ReportsTest extends TestCase
         }
     }
 
-    public function test_reports_default_to_the_last_six_calendar_months(): void
+    public function test_cash_flow_reports_default_to_september_through_december_of_the_current_year(): void
     {
         $this->travelTo('2026-09-07');
         $this->actingAs(User::factory()->create());
 
         Livewire::test('pages::reports.cash-flow')
-            ->assertSet('from', '2026-04')
-            ->assertSet('to', '2026-09')
-            ->assertSet('selectedFrom', '2026-04')
-            ->assertSet('selectedTo', '2026-09');
+            ->assertSet('from', '2026-09')
+            ->assertSet('to', '2026-12')
+            ->assertSet('selectedFrom', '2026-09')
+            ->assertSet('selectedTo', '2026-12');
+    }
+
+    public function test_cash_flow_reports_preserve_explicit_period_parameters(): void
+    {
+        $this->travelTo('2026-09-07');
+        $this->actingAs(User::factory()->create());
+
+        Livewire::withQueryParams(['from' => '2026-10', 'to' => '2026-11'])
+            ->test('pages::reports.cash-flow')
+            ->assertSet('from', '2026-10')
+            ->assertSet('to', '2026-11')
+            ->assertSet('selectedFrom', '2026-10')
+            ->assertSet('selectedTo', '2026-11');
+    }
+
+    public function test_report_navigation_keeps_the_current_report_active_when_query_parameters_are_present(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        foreach ([
+            ['reports.cash-flow', ['from' => '2026-10', 'to' => '2026-11'], 'Cash Flow'],
+            ['reports.assets', ['from' => '2026-09', 'to' => '2026-12'], 'Assets'],
+            ['reports.budgets', ['month' => '2026-09'], 'Budgets'],
+        ] as [$route, $query, $activeLabel]) {
+            $content = $this->get(route($route, $query))->assertOk()->getContent();
+            $document = new \DOMDocument;
+            @$document->loadHTML($content);
+            $navigation = (new \DOMXPath($document))->query('//nav[@aria-label="Reports"]')->item(0);
+            $this->assertNotNull($navigation);
+
+            $activeLinks = (new \DOMXPath($document))->query('//nav[@aria-label="Reports"]//a[@aria-current="page"]');
+            $this->assertSame(1, $activeLinks->length);
+            $this->assertSame($activeLabel, trim($activeLinks->item(0)->textContent));
+        }
+    }
+
+    public function test_cash_flow_navigation_stays_active_after_livewire_applies_a_period(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test('pages::reports.cash-flow')
+            ->set('from', '2026-10')
+            ->set('to', '2026-12')
+            ->call('applyPeriod')
+            ->assertSee('aria-current="page"', false)
+            ->assertSeeText('October 2026')
+            ->assertSeeText('December 2026');
     }
 
     public function test_reports_validate_period_and_preserve_valid_query_parameters(): void
@@ -82,7 +129,7 @@ class ReportsTest extends TestCase
 
         Livewire::withQueryParams([])->test('pages::reports.cash-flow')
             ->set('from', '2026-02')->set('to', '2026-01')->call('applyPeriod')
-            ->assertHasErrors('to')->assertSet('selectedFrom', now()->subMonths(5)->format('Y-m'));
+            ->assertHasErrors('to')->assertSet('selectedFrom', '2026-09');
     }
 
     public function test_reports_reject_malformed_and_excessive_periods(): void

@@ -148,7 +148,7 @@ new #[Title('Assets Reports')] class extends Component {
             <flux:heading size="xl" level="1">Assets Reports</flux:heading>
             <flux:text>Review your current assets and recorded account balance history.</flux:text>
         </div>
-        <x-reports.navigation />
+        <x-reports.navigation active-route="reports.assets" />
     </div>
 
     @error('from') <flux:text class="text-red-600">{{ $message }}</flux:text> @enderror
