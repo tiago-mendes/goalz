@@ -85,7 +85,7 @@ new #[Title('Goals Reports')] class extends Component {
             <flux:heading size="xl" level="1">Goals Reports</flux:heading>
             <flux:text>Review the current funding state of your goals and their funding sources.</flux:text>
         </div>
-        <x-reports.navigation />
+        <x-reports.navigation active-route="reports.goals" />
     </div>
 
     <section class="space-y-4" aria-labelledby="goal-progress-heading">

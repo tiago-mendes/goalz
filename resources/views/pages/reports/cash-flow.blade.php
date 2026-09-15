@@ -27,8 +27,9 @@ new #[Title('Cash Flow Reports')] class extends Component {
 
     public function mount(): void
     {
-        $this->from = $this->from !== '' ? $this->from : now()->subMonths(5)->format('Y-m');
-        $this->to = $this->to !== '' ? $this->to : now()->format('Y-m');
+        $defaultYear = now()->format('Y');
+        $this->from = $this->from !== '' ? $this->from : $defaultYear.'-09';
+        $this->to = $this->to !== '' ? $this->to : $defaultYear.'-12';
         $this->selectedFrom = $this->from;
         $this->selectedTo = $this->to;
         $this->validatePeriod();
@@ -143,7 +144,7 @@ new #[Title('Cash Flow Reports')] class extends Component {
             <flux:heading size="xl" level="1">Cash Flow Reports</flux:heading>
             <flux:text>Analyze your persisted income and expense history.</flux:text>
         </div>
-        <x-reports.navigation />
+        <x-reports.navigation active-route="reports.cash-flow" />
         <form wire:submit="applyPeriod" class="flex flex-wrap items-end gap-3">
             <flux:input wire:model="from" label="From" type="month" min="1000-01" max="9999-12" required />
             <flux:input wire:model="to" label="To" type="month" min="1000-01" max="9999-12" required />

@@ -137,7 +137,7 @@ new #[Title('Credit Card Reports')] class extends Component {
             <flux:heading size="xl" level="1">Credit Card Reports</flux:heading>
             <flux:text>Analyze persisted credit card spending and calculated bill due months.</flux:text>
         </div>
-        <x-reports.navigation />
+        <x-reports.navigation active-route="reports.credit-cards" />
     </div>
 
     <form wire:submit="applyPeriod" class="flex flex-wrap items-end gap-3">
