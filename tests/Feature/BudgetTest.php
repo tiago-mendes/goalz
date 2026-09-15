@@ -13,9 +13,11 @@ use App\Models\FixedExpense;
 use App\Models\MonthlyIncome;
 use App\Models\User;
 use App\Reports\BudgetReport;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class BudgetTest extends TestCase
@@ -114,6 +116,191 @@ class BudgetTest extends TestCase
         $this->assertSame('124.0', $report['rows'][0]['usage']);
         $this->assertSame('Over budget', $report['rows'][0]['status']);
         $this->assertSame($before, [BudgetRule::count(), Expense::count(), FixedExpense::count(), MonthlyIncome::count()]);
+    }
+
+    #[DataProvider('currentMonthPacingProvider')]
+    public function test_budget_report_calculates_current_month_pacing(string $spending, string $expectedStatus): void
+    {
+        $this->travelTo('2026-09-15');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00']);
+        Expense::factory()->for($user)->for($category)->create(['amount' => $spending, 'expense_date' => '2026-09-15']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-09-01'));
+
+        $this->assertSame('50.0', $report['monthElapsed']);
+        $this->assertSame($expectedStatus, $report['overallPacingStatus']);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function currentMonthPacingProvider(): array
+    {
+        return [
+            'below pace' => ['30.00', 'On track'],
+            'at pace' => ['50.00', 'On track'],
+            'above pace' => ['80.00', 'Above pace'],
+            'full usage above pace' => ['100.00', 'Above pace'],
+            'over budget takes priority' => ['110.00', 'Over budget'],
+        ];
+    }
+
+    public function test_budget_report_applies_shared_current_month_pacing_to_each_category(): void
+    {
+        $this->travelTo('2026-09-15');
+        $user = User::factory()->create();
+        $expectedStatuses = [
+            'Below pace' => ['30.00', 'On track'],
+            'At pace' => ['50.00', 'On track'],
+            'Food' => ['65.90', 'Above pace'],
+            'Leisure' => ['62.00', 'Above pace'],
+            'Market/Groceries' => ['41.30', 'On track'],
+            'Over budget' => ['110.00', 'Over budget'],
+        ];
+
+        foreach ($expectedStatuses as $name => [$spending, $status]) {
+            $category = ExpenseCategory::factory()->for($user)->create(['name' => $name]);
+            BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00']);
+            Expense::factory()->for($user)->for($category)->create(['amount' => $spending, 'expense_date' => '2026-09-15']);
+        }
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-09-01'));
+        $rows = collect($report['rows'])->keyBy(fn (array $row): string => $row['category']->name);
+
+        $this->assertSame('50.0', $report['monthElapsed']);
+        foreach ($expectedStatuses as $name => [$spending, $status]) {
+            $this->assertSame($status, $rows[$name]['status']);
+            $this->assertSame(number_format((float) $spending, 1), $rows[$name]['usage']);
+        }
+    }
+
+    public function test_budget_report_handles_month_lengths_and_historical_and_future_pacing(): void
+    {
+        $this->travelTo('2024-02-29');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00', 'starts_month' => '2024-02-01']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2024-02-01'));
+        $this->assertSame('100.0', $report['monthElapsed']);
+        $this->assertSame('On track', $report['overallPacingStatus']);
+
+        $this->travelTo('2026-01-16');
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-01-01'));
+        $this->assertSame('51.6', $report['monthElapsed']);
+
+        $this->travelTo('2026-02-16');
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-01-01'));
+        $this->assertSame('100.0', $report['monthElapsed']);
+        $this->assertSame('On track', $report['overallPacingStatus']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-03-01'));
+        $this->assertSame('0.0', $report['monthElapsed']);
+        $this->assertSame('Not started', $report['overallPacingStatus']);
+    }
+
+    #[DataProvider('historicalPacingProvider')]
+    public function test_budget_report_never_marks_completed_months_above_pace(string $spending, string $expectedStatus): void
+    {
+        $this->travelTo('2026-02-16');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00', 'starts_month' => '2026-01-01']);
+        Expense::factory()->for($user)->for($category)->create(['amount' => $spending, 'expense_date' => '2026-01-15']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-01-01'));
+
+        $this->assertSame('100.0', $report['monthElapsed']);
+        $this->assertSame($expectedStatus, $report['overallPacingStatus']);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function historicalPacingProvider(): array
+    {
+        return [
+            'below budget' => ['80.00', 'On track'],
+            'at budget' => ['100.00', 'On track'],
+            'over budget' => ['110.00', 'Over budget'],
+        ];
+    }
+
+    public function test_budget_report_preserves_future_usage_without_claiming_pacing(): void
+    {
+        $this->travelTo('2026-02-16');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00', 'starts_month' => '2026-01-01']);
+        Expense::factory()->for($user)->for($category)->create(['amount' => '110.00', 'expense_date' => '2026-03-15']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-03-01'));
+
+        $this->assertSame('110.0', $report['overallUsage']);
+        $this->assertSame('0.0', $report['monthElapsed']);
+        $this->assertSame('Not started', $report['overallPacingStatus']);
+    }
+
+    public function test_budget_report_applies_not_started_status_to_each_future_category(): void
+    {
+        $this->travelTo('2026-02-16');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Future Food']);
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00', 'starts_month' => '2026-01-01']);
+        Expense::factory()->for($user)->for($category)->create(['amount' => '25.00', 'expense_date' => '2026-03-15']);
+
+        $report = app(BudgetReport::class)->handle($user, CarbonImmutable::parse('2026-03-01'));
+
+        $this->assertSame('25.0', $report['rows'][0]['usage']);
+        $this->assertSame('Not started', $report['rows'][0]['status']);
+    }
+
+    public function test_budget_report_renders_pacing_summary_for_current_month(): void
+    {
+        $this->travelTo('2026-09-15');
+        $user = User::factory()->create();
+        $category = ExpenseCategory::factory()->for($user)->create();
+        BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00']);
+        Expense::factory()->for($user)->for($category)->create(['amount' => '80.00', 'expense_date' => '2026-09-15']);
+        $this->actingAs($user);
+
+        Livewire::test('pages::reports.budgets')
+            ->assertSeeText('Overall Usage')
+            ->assertSeeText('80.0%')
+            ->assertSeeText('Month elapsed: 50.0%')
+            ->assertSeeText('Above pace');
+    }
+
+    public function test_budget_report_renders_the_shared_elapsed_marker_on_each_category_row(): void
+    {
+        $this->travelTo('2026-09-15');
+        $user = User::factory()->create();
+
+        foreach ([['Food', '65.90'], ['Leisure', '62.00'], ['Market/Groceries', '41.30']] as [$name, $spending]) {
+            $category = ExpenseCategory::factory()->for($user)->create(['name' => $name]);
+            BudgetRule::factory()->for($user)->for($category, 'expenseCategory')->create(['amount' => '100.00']);
+            Expense::factory()->for($user)->for($category)->create(['amount' => $spending, 'expense_date' => '2026-09-15']);
+        }
+
+        $this->actingAs($user);
+        $html = Livewire::test('pages::reports.budgets')->html();
+
+        $this->assertStringContainsString('65.9%', $html);
+        $this->assertStringContainsString('Above pace', $html);
+        $this->assertStringContainsString('41.3%', $html);
+        $this->assertStringContainsString('On track', $html);
+        $this->assertSame(3, substr_count($html, 'title="Month elapsed: 50.0%"'));
+        $this->assertSame(4, substr_count($html, 'role="progressbar"'));
+    }
+
+    public function test_budget_report_does_not_show_pacing_status_without_a_budget(): void
+    {
+        $this->travelTo('2026-09-15');
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Livewire::test('pages::reports.budgets')
+            ->assertSeeText('No budgets configured')
+            ->assertSeeText('No budget configured')
+            ->assertDontSeeText('On track');
     }
 
     public function test_management_rejects_foreign_category_and_invalid_amount(): void

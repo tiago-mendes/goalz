@@ -12,7 +12,7 @@ use Carbon\CarbonImmutable;
 class BudgetReport
 {
     /**
-     * @return array{month: string, rows: list<array{key: int, category: ExpenseCategory, budget: string, expenses: string, remaining: string, usage: string, status: string, overBudget: string}>, totalBudget: string, budgetedSpending: string, remaining: string, overallUsage: string}
+     * @return array{month: string, rows: list<array{key: int, category: ExpenseCategory, budget: string, expenses: string, remaining: string, usage: string, status: string, overBudget: string}>, totalBudget: string, budgetedSpending: string, remaining: string, overallUsage: string, monthElapsed: string, overallPacingStatus: string}
      */
     public function handle(User $user, CarbonImmutable $month): array
     {
@@ -24,6 +24,8 @@ class BudgetReport
         $rows = [];
         $totalBudget = BigDecimal::zero();
         $budgetedSpending = BigDecimal::zero();
+        $monthElapsed = $this->monthElapsedDecimal($period);
+        $temporalState = $this->temporalState($period);
 
         foreach ($rules as $rule) {
             $budget = BigDecimal::of($rule->amount);
@@ -41,7 +43,7 @@ class BudgetReport
                 'expenses' => (string) $spent->toScale(2),
                 'remaining' => (string) $remaining->toScale(2),
                 'usage' => $this->percentage($spent, $budget),
-                'status' => $spent->isGreaterThan($budget) ? 'Over budget' : ($spent->isEqualTo($budget) ? 'Budget reached' : 'On track'),
+                'status' => $this->pacingStatus($spent, $budget, $monthElapsed, $temporalState),
                 'overBudget' => (string) ($spent->isGreaterThan($budget) ? $spent->minus($budget) : BigDecimal::zero())->toScale(2),
             ];
         }
@@ -55,7 +57,50 @@ class BudgetReport
             'budgetedSpending' => (string) $budgetedSpending->toScale(2),
             'remaining' => (string) $totalBudget->minus($budgetedSpending)->toScale(2),
             'overallUsage' => $this->percentage($budgetedSpending, $totalBudget),
+            'monthElapsed' => (string) $monthElapsed->toScale(1, RoundingMode::HalfUp),
+            'overallPacingStatus' => $totalBudget->isZero() ? 'No budget configured' : $this->pacingStatus($budgetedSpending, $totalBudget, $monthElapsed, $temporalState),
         ];
+    }
+
+    private function pacingStatus(BigDecimal $spent, BigDecimal $budget, BigDecimal $monthElapsed, string $temporalState): string
+    {
+        if ($temporalState === 'future') {
+            return 'Not started';
+        }
+
+        if ($spent->isGreaterThan($budget)) {
+            return 'Over budget';
+        }
+
+        if ($temporalState === 'past') {
+            return 'On track';
+        }
+
+        return $spent->multipliedBy(100)->isLessThanOrEqualTo($budget->multipliedBy($monthElapsed)) ? 'On track' : 'Above pace';
+    }
+
+    private function temporalState(CarbonImmutable $period): string
+    {
+        $currentMonth = now()->toImmutable()->startOfMonth();
+
+        return $period->greaterThan($currentMonth) ? 'future' : ($period->lessThan($currentMonth) ? 'past' : 'current');
+    }
+
+    private function monthElapsedDecimal(CarbonImmutable $period): BigDecimal
+    {
+        $currentMonth = now()->toImmutable()->startOfMonth();
+
+        if ($period->lessThan($currentMonth)) {
+            return BigDecimal::of(100);
+        }
+
+        if ($period->greaterThan($currentMonth)) {
+            return BigDecimal::zero();
+        }
+
+        return BigDecimal::of(now()->day)
+            ->multipliedBy(100)
+            ->dividedBy($period->daysInMonth, 10, RoundingMode::HalfUp);
     }
 
     private function percentage(BigDecimal $amount, BigDecimal $total): string
