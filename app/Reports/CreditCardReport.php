@@ -2,8 +2,8 @@
 
 namespace App\Reports;
 
-use App\BillingCycle;
-use App\BillingCycleResolver;
+use App\Actions\CalculateCreditCardBill;
+use App\CreditCardBillPeriodResolver;
 use App\Models\CreditCard;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -15,7 +15,10 @@ use Illuminate\Database\Eloquent\Collection;
 
 class CreditCardReport
 {
-    public function __construct(private readonly BillingCycleResolver $billingCycleResolver) {}
+    public function __construct(
+        private readonly CreditCardBillPeriodResolver $billPeriodResolver,
+        private readonly CalculateCreditCardBill $calculateCreditCardBill,
+    ) {}
 
     /**
      * @return array{
@@ -168,58 +171,40 @@ class CreditCardReport
         return $result;
     }
 
-    /** @return array{0: list<array{key: string, dueMonth: string, card: string, cycle: string, dueDate: string, amount: string}>, 1: array<string, array{key: string, label: string, amount: BigDecimal}>} */
+    /**
+     * @param  Collection<int, CreditCard>  $cards
+     * @param  array<string, array{key: string, label: string, amount: BigDecimal}>  $billMonths
+     * @return array{0: list<array{key: string, dueMonth: string, card: string, cycle: string, dueDate: string, amount: string}>, 1: array<string, array{key: string, label: string, amount: BigDecimal}>}
+     */
     private function calculatedBills(User $user, Collection $cards, ?CreditCard $selectedCard, CarbonImmutable $from, CarbonImmutable $to, array $billMonths): array
     {
         $billCards = $selectedCard === null ? $cards : new Collection([$selectedCard]);
-        $cycles = [];
-        $earliest = null;
-        $latest = null;
+        $bills = [];
 
         foreach ($billCards as $card) {
             $month = $from->startOfMonth();
             while ($month->lessThanOrEqualTo($to->startOfMonth())) {
-                $cycle = $this->billingCycleResolver->dueIn($month, $card->cycle_start_day, $card->due_day);
-                $cycles[] = ['card' => $card, 'cycle' => $cycle, 'dueMonth' => $month->format('Y-m')];
-                $earliest = $earliest === null || $cycle->start->lessThan($earliest) ? $cycle->start : $earliest;
-                $latest = $latest === null || $cycle->end->greaterThan($latest) ? $cycle->end : $latest;
+                $cycle = $this->billPeriodResolver->resolve($card, $month)->cycle;
+                $bill = $this->calculateCreditCardBill->handle($user, $card, $cycle);
+                $total = BigDecimal::of($bill->total);
+                $dueMonth = $month->format('Y-m');
+
+                $billMonth = $billMonths[$dueMonth];
+                $billMonth['amount'] = $billMonth['amount']->plus($total);
+                $billMonths[$dueMonth] = $billMonth;
+                if (! $total->isZero()) {
+                    $bills[] = [
+                        'key' => $card->id.'-'.$dueMonth,
+                        'dueMonth' => $dueMonth,
+                        'card' => $card->name,
+                        'cycle' => $cycle->start->toDateString().' – '.$cycle->end->toDateString(),
+                        'dueDate' => $cycle->dueDate->toDateString(),
+                        'amount' => $bill->total,
+                    ];
+                }
+
                 $month = $month->addMonth();
             }
-        }
-
-        if ($cycles === [] || $earliest === null || $latest === null) {
-            return [[], $billMonths];
-        }
-
-        $expenses = $this->expensesBetween($user, $earliest, $latest, $billCards)->groupBy('credit_card_id');
-        $bills = [];
-
-        foreach ($cycles as $cycleData) {
-            /** @var CreditCard $card */
-            $card = $cycleData['card'];
-            /** @var BillingCycle $cycle */
-            $cycle = $cycleData['cycle'];
-            $total = BigDecimal::zero();
-
-            foreach ($expenses->get($card->id, new Collection) as $expense) {
-                if (! $expense->expense_date->lessThan($cycle->start) && ! $expense->expense_date->greaterThan($cycle->end)) {
-                    $total = $total->plus($expense->amount);
-                }
-            }
-
-            $billMonths[$cycleData['dueMonth']]['amount'] = $billMonths[$cycleData['dueMonth']]['amount']->plus($total);
-            if ($total->isZero()) {
-                continue;
-            }
-
-            $bills[] = [
-                'key' => $card->id.'-'.$cycleData['dueMonth'],
-                'dueMonth' => $cycleData['dueMonth'],
-                'card' => $card->name,
-                'cycle' => $cycle->start->toDateString().' – '.$cycle->end->toDateString(),
-                'dueDate' => $cycle->dueDate->toDateString(),
-                'amount' => (string) $total->toScale(2),
-            ];
         }
 
         usort($bills, fn (array $left, array $right): int => strcmp($left['dueMonth'], $right['dueMonth']) ?: strcasecmp($left['card'], $right['card']));

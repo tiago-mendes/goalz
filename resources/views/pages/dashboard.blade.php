@@ -175,7 +175,7 @@ new #[Title('Monthly Overview')] class extends Component {
         $bills = [];
 
         foreach (auth()->user()->creditCards()->orderBy('name')->orderBy('id')->get() as $creditCard) {
-            $cycle = $resolver->dueIn($dueMonth, $creditCard->cycle_start_day, $creditCard->due_day);
+            $cycle = $resolver->dueInFor($creditCard, $dueMonth);
             $bill = $projector->handle(auth()->user(), $creditCard, $cycle);
 
             if ($creditCard->is_active || $bill->expenses->isNotEmpty()) {

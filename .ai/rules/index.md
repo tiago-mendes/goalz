@@ -5,6 +5,8 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Actions/SaveGoalAccountAllocation.php | .ai/rules/actions.md |
+| {app/{BillingCycle*,CreditCardBill*,Actions/*CreditCardBill.php},app/Models/{CreditCard,CreditCardBillPeriod,Expense}.php,resources/views/pages/credit-cards/**,database/migrations/*credit_card_bill_periods*,tests/Feature/CreditCardBill*} | .ai/rules/credit-cards-migrations-feature.md |
+| resources/views/pages/credit-cards/show.blade.php | .ai/rules/credit-cards.md |
 | {app/Actions/SaveGoalAccountAllocation.php,app/Models/{Account,Goal,GoalAccountAllocation}.php,resources/views/pages/{accounts,goals}/**,tests/Feature/GoalAccountAllocations*} | .ai/rules/feature.md |
 | {app/Models/Goal.php,resources/views/pages/goals/index.blade.php,tests/Feature/SharedGoalsTest.php} | .ai/rules/goals-feature.md |
 | {app/Models/{Account,AccountBalanceSnapshot}.php,resources/views/pages/accounts/**,database/migrations/*account_balance_snapshots*,tests/Feature/{Accounts*,AccountBalanceSnapshots*}} | .ai/rules/migrations-feature.md |
