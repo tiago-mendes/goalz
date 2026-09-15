@@ -651,7 +651,10 @@ class ExpensesTest extends TestCase
             ->assertSet('selectedMonth', '2026-09')
             ->assertSee('September lunch')
             ->assertDontSee('August lunch')
-            ->assertSee('USD 10.00');
+            ->assertSee('USD 10.00')
+            ->assertSet('total', '10.00')
+            ->assertSet('filteredTotal', '10.00')
+            ->assertSee('Filtered Total');
 
         $page->call('clearFilters')
             ->assertSet('selectedMonth', '2026-09')
@@ -660,7 +663,8 @@ class ExpensesTest extends TestCase
             ->assertSet('source', '')
             ->assertSet('paymentSource', '')
             ->assertSee('September lunch')
-            ->assertDontSee('August lunch');
+            ->assertDontSee('August lunch')
+            ->assertDontSee('Filtered Total');
     }
 
     public function test_expense_grid_supports_source_payment_search_and_sort_filters(): void
@@ -689,6 +693,62 @@ class ExpensesTest extends TestCase
             ->assertSee('Recurring card')->assertDontSee('Manual account')->assertDontSee('Manual cash');
         Livewire::withQueryParams(['month' => '2026-09', 'payment_source' => 'none'])
             ->test('pages::expenses.index')->assertSee('Manual cash')->assertDontSee('Manual account')->assertDontSee('Recurring card');
+    }
+
+    public function test_filtered_total_keeps_the_canonical_month_total_and_describes_all_data_filters(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $category = ExpenseCategory::factory()->for($user)->create(['name' => 'Market/Groceries']);
+        $otherCategory = ExpenseCategory::factory()->for($user)->create(['name' => 'Transport']);
+        $card = CreditCard::factory()->for($user)->create(['name' => 'Itaú Multi Black']);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'Mercado 1', 'amount' => '100.00', 'expense_date' => '2026-09-10', 'credit_card_id' => $card->id,
+        ]);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'Mercado 2', 'amount' => '200.00', 'expense_date' => '2026-09-11', 'credit_card_id' => $card->id,
+        ]);
+        Expense::factory()->for($user)->for($otherCategory)->create([
+            'name' => 'Other card expense', 'amount' => '500.00', 'expense_date' => '2026-09-12', 'credit_card_id' => $card->id,
+        ]);
+        Expense::factory()->for($user)->for($category)->create([
+            'name' => 'August Mercado', 'amount' => '900.00', 'expense_date' => '2026-08-12', 'credit_card_id' => $card->id,
+        ]);
+        $this->actingAs($user);
+
+        $page = Livewire::withQueryParams([
+            'month' => '2026-09', 'search' => 'Mercado', 'category' => $category->id,
+            'source' => 'manual', 'payment_source' => 'card:'.$card->id,
+        ])->test('pages::expenses.index');
+
+        $page->assertSet('total', '800.00')
+            ->assertSet('filteredTotal', '300.00')
+            ->assertSee('Search: Mercado')
+            ->assertSee('Category: Market/Groceries')
+            ->assertSee('Source: Manual')
+            ->assertSee('Payment: Credit Card: Itaú Multi Black')
+            ->assertSee('Filtered Total')
+            ->assertSee('R$ 300.00')
+            ->assertDontSee('August Mercado');
+
+        $page->set(['sort' => 'amount', 'direction' => 'desc'])
+            ->assertSet('filteredTotal', '300.00')
+            ->assertDontSee('Sort:')
+            ->assertDontSee('Direction:');
+    }
+
+    public function test_filtered_total_shows_zero_for_an_active_filter_without_changing_the_month_total(): void
+    {
+        $user = User::factory()->create(['currency' => 'BRL']);
+        $category = ExpenseCategory::factory()->for($user)->create();
+        Expense::factory()->for($user)->for($category)->create(['amount' => '800.00', 'expense_date' => '2026-09-10']);
+        $this->actingAs($user);
+
+        Livewire::withQueryParams(['month' => '2026-09', 'search' => 'Does not exist'])
+            ->test('pages::expenses.index')
+            ->assertSet('total', '800.00')
+            ->assertSet('filteredTotal', '0.00')
+            ->assertSee('Search: Does not exist')
+            ->assertSee('R$ 0.00');
     }
 
     public function test_expense_grid_rejects_stale_foreign_filters_without_exception_or_data_leak(): void

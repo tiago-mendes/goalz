@@ -99,6 +99,40 @@ new #[Title('Expenses')] class extends Component {
     }
 
     #[Computed]
+    public function filteredTotal(): string
+    {
+        $total = $this->filteredMonthQuery()->whereNull('deleted_by_user_at')
+            ->selectRaw('COALESCE(SUM(amount), 0) as filtered_total')
+            ->value('filtered_total');
+
+        return (string) BigDecimal::of((string) ($total ?? '0'))->toScale(2);
+    }
+
+    /** @return list<string> */
+    public function activeFilterDescriptions(): array
+    {
+        $descriptions = [];
+
+        if (trim($this->search) !== '') {
+            $descriptions[] = 'Search: '.$this->search;
+        }
+        if ($this->category !== '') {
+            $category = $this->categories->firstWhere('id', (int) $this->category);
+            if ($category !== null) {
+                $descriptions[] = 'Category: '.$category->name;
+            }
+        }
+        if ($this->source !== '') {
+            $descriptions[] = 'Source: '.($this->source === 'manual' ? 'Manual' : 'Recurring');
+        }
+        if ($this->paymentSource !== '') {
+            $descriptions[] = 'Payment: '.$this->paymentSourceDescription();
+        }
+
+        return $descriptions;
+    }
+
+    #[Computed]
     public function categories(): Collection
     {
         return auth()->user()->expenseCategories()->where('is_active', true)->orderBy('name')->orderBy('id')->get();
@@ -165,11 +199,29 @@ new #[Title('Expenses')] class extends Component {
     /** @return HasMany<Expense, \App\Models\User> */
     private function monthQuery(): HasMany
     {
-        $query = $this->unfilteredMonthQuery()->with([
+        $query = $this->filteredMonthQuery()->with([
             'expenseCategory' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
             'paymentAccount' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
             'creditCard' => fn (BelongsTo $query): BelongsTo => $query->where('user_id', auth()->id()),
         ]);
+        if ($this->sort === 'category') {
+            $query->orderBy(ExpenseCategory::query()->select('name')
+                ->whereColumn('expense_categories.id', 'expenses.expense_category_id'), $this->direction);
+        } else {
+            $query->orderBy(match ($this->sort) {
+                'name' => 'name',
+                'amount' => 'amount',
+                default => 'expense_date',
+            }, $this->direction);
+        }
+
+        return $query->orderBy('id');
+    }
+
+    /** @return HasMany<Expense, \App\Models\User> */
+    private function filteredMonthQuery(): HasMany
+    {
+        $query = $this->unfilteredMonthQuery();
         $search = trim($this->search);
 
         if ($search !== '') {
@@ -196,18 +248,29 @@ new #[Title('Expenses')] class extends Component {
         } elseif (str_starts_with($this->paymentSource, 'card:')) {
             $query->where('credit_card_id', (int) str_replace('card:', '', $this->paymentSource));
         }
-        if ($this->sort === 'category') {
-            $query->orderBy(ExpenseCategory::query()->select('name')
-                ->whereColumn('expense_categories.id', 'expenses.expense_category_id'), $this->direction);
-        } else {
-            $query->orderBy(match ($this->sort) {
-                'name' => 'name',
-                'amount' => 'amount',
-                default => 'expense_date',
-            }, $this->direction);
+
+        return $query;
+    }
+
+    private function paymentSourceDescription(): string
+    {
+        if ($this->paymentSource === 'none') {
+            return 'Not specified';
+        }
+        if ($this->paymentSource === 'account') {
+            return 'Account';
+        }
+        if ($this->paymentSource === 'card') {
+            return 'Credit Card';
+        }
+        if (str_starts_with($this->paymentSource, 'account:')) {
+            return 'Account: '.($this->accounts->firstWhere('id', (int) str_replace('account:', '', $this->paymentSource))?->name ?? 'Not specified');
+        }
+        if (str_starts_with($this->paymentSource, 'card:')) {
+            return 'Credit Card: '.($this->creditCards->firstWhere('id', (int) str_replace('card:', '', $this->paymentSource))?->name ?? 'Not specified');
         }
 
-        return $query->orderBy('id');
+        return 'Not specified';
     }
 
     /** @return HasMany<Expense, \App\Models\User> */
@@ -243,7 +306,7 @@ new #[Title('Expenses')] class extends Component {
 
     private function refreshExpenses(): void
     {
-        unset($this->expenses, $this->deletedExpenses, $this->deletedCount, $this->total);
+        unset($this->expenses, $this->deletedExpenses, $this->deletedCount, $this->total, $this->filteredTotal);
     }
 }; ?>
 
@@ -294,10 +357,19 @@ new #[Title('Expenses')] class extends Component {
         @endif
     </div>
     <flux:text>{{ $this->expenses->count() }} {{ $this->expenses->count() === 1 ? 'expense' : 'expenses' }} shown</flux:text>
-    <div class="space-y-2 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
+    <div class="flex flex-col gap-6 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-2">
         <flux:heading size="lg">{{ CarbonImmutable::createFromFormat('!Y-m', $selectedMonth)->format('F Y') }}</flux:heading>
         <flux:text>Total Expenses</flux:text>
         <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->total" /></p>
+        </div>
+        @if ($this->hasActiveFilters())
+            <div class="max-w-2xl space-y-2 lg:text-right">
+                <flux:text>{{ implode(', ', $this->activeFilterDescriptions()) }}</flux:text>
+                <flux:text>Filtered Total</flux:text>
+                <p class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->filteredTotal" /></p>
+            </div>
+        @endif
     </div>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700" wire:loading.class="opacity-50" wire:target="openMonth">
         <table class="w-full text-left text-sm">
