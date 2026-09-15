@@ -28,8 +28,9 @@ new #[Title('Credit Card Reports')] class extends Component {
 
     public function mount(): void
     {
-        $this->from = $this->from !== '' ? $this->from : now()->subMonths(5)->format('Y-m');
-        $this->to = $this->to !== '' ? $this->to : now()->format('Y-m');
+        $defaultYear = now()->format('Y');
+        $this->from = $this->from !== '' ? $this->from : $defaultYear.'-09';
+        $this->to = $this->to !== '' ? $this->to : $defaultYear.'-12';
         $this->selectedFrom = $this->from;
         $this->selectedTo = $this->to;
         $this->validatePeriod();

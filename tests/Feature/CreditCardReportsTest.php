@@ -194,20 +194,43 @@ class CreditCardReportsTest extends TestCase
         $page->set('billCardId', 999999)->assertHasErrors('billCardId')->assertSet('billCardId', null);
     }
 
-    public function test_reports_default_to_six_months_preserve_period_and_have_safe_empty_states(): void
+    public function test_reports_default_to_september_through_december_preserve_period_and_have_safe_empty_states(): void
     {
         $this->travelTo('2026-09-07');
         $user = User::factory()->create();
         $this->actingAs($user);
 
         Livewire::test('pages::reports.credit-cards')
-            ->assertSet('from', '2026-04')->assertSet('to', '2026-09')->assertSet('billCardId', null)
+            ->assertSet('from', '2026-09')->assertSet('to', '2026-12')->assertSet('billCardId', null)
             ->assertSeeText('No credit card spending is available for this period.')
             ->assertSeeText('No calculated bills are available for this period.');
 
         Livewire::withQueryParams(['from' => '2025-01', 'to' => '2025-02'])
             ->test('pages::reports.credit-cards')
             ->assertSet('from', '2025-01')->assertSet('to', '2025-02');
+    }
+
+    public function test_default_period_uses_only_september_through_december_credit_card_expenses(): void
+    {
+        $this->travelTo('2026-09-07');
+        $user = User::factory()->create();
+        $card = CreditCard::factory()->for($user)->create();
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-08-31', 'amount' => '80.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-09-01', 'amount' => '100.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2026-12-15', 'amount' => '200.00']);
+        Expense::factory()->for($user)->create(['credit_card_id' => $card->id, 'expense_date' => '2027-01-01', 'amount' => '400.00']);
+        $this->actingAs($user);
+
+        $page = Livewire::test('pages::reports.credit-cards');
+        $report = $page->get('report');
+
+        $page->assertSet('from', '2026-09')
+            ->assertSet('to', '2026-12')
+            ->assertSet('selectedFrom', '2026-09')
+            ->assertSet('selectedTo', '2026-12');
+        $this->assertSame('300.00', $report['total']);
+        $this->assertSame('100.00', $report['months'][0]['amount']);
+        $this->assertSame('200.00', $report['months'][3]['amount']);
     }
 
     public function test_reports_exclude_foreign_cards_and_admin_has_no_financial_bypass(): void
