@@ -81,6 +81,79 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
 }
 
+.goal-celebration--25 {
+    animation: goal-celebration-pulse 450ms ease-out;
+}
+
+.goal-celebration--50 {
+    animation: goal-celebration-pulse 650ms ease-out;
+}
+
+.goal-celebration--75 {
+    animation: goal-celebration-pulse 850ms ease-out;
+}
+
+.goal-celebration--100 {
+    animation: goal-celebration-enter 650ms ease-out;
+}
+
+.goal-confetti span {
+    --angle: calc(var(--piece) * 30deg);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.5rem;
+    height: 1rem;
+    border-radius: 0.125rem;
+    background: hsl(calc(var(--piece) * 47) 75% 55%);
+    animation: goal-confetti 1.4s ease-out both;
+    animation-delay: calc(var(--piece) * 25ms);
+}
+
+@keyframes goal-celebration-pulse {
+    0% {
+        opacity: 0;
+        transform: translateY(1rem) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes goal-celebration-enter {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes goal-confetti {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-13rem) rotate(540deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .goal-celebration,
+    .goal-confetti span {
+        animation: none;
+    }
+
+    .goal-confetti {
+        display: none;
+    }
+}
+
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */

@@ -14,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class SaveGoalAccountAllocation
 {
+    public function __construct(private EvaluateGoalMilestones $evaluateGoalMilestones) {}
+
     public function handle(User $user, int $goalId, int $accountId, string $amount, ?int $allocationId = null): GoalAccountAllocation
     {
         $this->validateAmount($amount);
@@ -54,6 +56,10 @@ class SaveGoalAccountAllocation
                 $allocation->save();
             } catch (UniqueConstraintViolationException) {
                 throw ValidationException::withMessages(['accountId' => 'This account already funds the goal.']);
+            }
+
+            if ($requestedAmount->isGreaterThan($currentAmount)) {
+                $this->evaluateGoalMilestones->handle($goal);
             }
 
             return $allocation;
