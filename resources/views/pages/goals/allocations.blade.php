@@ -403,6 +403,18 @@ new #[Title('Goal allocations')] class extends Component {
         <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700"><flux:heading>Progress</flux:heading><p class="text-xl font-semibold tabular-nums">{{ $this->goal->progressPercentage() }}%</p></div>
     </div>
 
+    @php($fundingPlan = $this->goal->fundingPlan())
+    <div class="rounded-xl border border-zinc-200 p-5 dark:border-zinc-700">
+        <dl class="grid gap-4 sm:grid-cols-3">
+            <div><dt class="text-sm text-zinc-600 dark:text-zinc-400">Target date</dt><dd class="font-medium">{{ $this->goal->target_date?->format('M j, Y') ?? '—' }}</dd></div>
+            <div><dt class="text-sm text-zinc-600 dark:text-zinc-400">Time remaining</dt><dd class="font-medium">@if ($fundingPlan->deadlineState === 'active'){{ $fundingPlan->monthsRemaining }} months @elseif ($fundingPlan->deadlineState === 'due_today')Due today @elseif ($fundingPlan->deadlineState === 'overdue')Target date passed @elseif ($fundingPlan->deadlineState === 'funded')Target funded @else No target date @endif</dd></div>
+            <div><dt class="text-sm text-zinc-600 dark:text-zinc-400">Needed per month</dt><dd class="font-medium tabular-nums">@if ($fundingPlan->deadlineState === 'active')<x-money :currency="auth()->user()->currency" :amount="$fundingPlan->requiredPerMonth" /> @else—@endif</dd></div>
+        </dl>
+        @if (in_array($fundingPlan->deadlineState, ['due_today', 'overdue'], true))
+            <flux:text class="mt-3"><x-money :currency="auth()->user()->currency" :amount="$fundingPlan->remainingAmount" /> remaining</flux:text>
+        @endif
+    </div>
+
     @if (BigDecimal::of($this->goal->remainingAmount())->isNegative())
             <flux:callout>The goal is overfunded by <x-money :currency="auth()->user()->currency" :amount="$this->goal->overfundedAmount()" />. Existing allocations are preserved; reduce or remove them if desired.</flux:callout>
     @endif

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\GoalFundingPlan;
 use App\GoalMembershipStatus;
 use App\GoalStatus;
 use Brick\Math\BigDecimal;
@@ -159,6 +160,11 @@ class Goal extends Model
     public function remainingAmount(): string
     {
         return (string) BigDecimal::of($this->target_amount)->minus($this->allocatedAmount())->toScale(2);
+    }
+
+    public function fundingPlan(): GoalFundingPlan
+    {
+        return GoalFundingPlan::forGoal($this);
     }
 
     public function overfundedAmount(): string
