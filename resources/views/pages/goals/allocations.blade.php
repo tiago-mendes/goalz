@@ -1,13 +1,17 @@
 <?php
 
 use App\Actions\SaveGoalAccountAllocation;
+use App\Actions\DeleteGoalReward;
 use App\Actions\EndGoalMembership;
 use App\Actions\InviteGoalMember;
+use App\Actions\SaveGoalReward;
 use App\GoalMembershipStatus;
+use App\GoalMilestone;
 use App\Models\Account;
 use App\Models\Goal;
 use App\Models\GoalAccountAllocation;
 use App\Models\GoalMembership;
+use App\Models\GoalReward;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\NumberFormatException;
@@ -15,6 +19,7 @@ use Brick\Math\RoundingMode;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -37,6 +42,17 @@ new #[Title('Goal allocations')] class extends Component {
 
     public string $inviteEmail = '';
 
+    #[Locked]
+    public ?int $rewardId = null;
+
+    public ?int $rewardMilestone = null;
+
+    public string $rewardTitle = '';
+
+    public string $rewardDescription = '';
+
+    public bool $showRewardEditor = false;
+
     public function mount(int $goalId): void
     {
         $this->goalId = $goalId;
@@ -48,8 +64,34 @@ new #[Title('Goal allocations')] class extends Component {
     {
         return $this->accessibleGoal()->load([
             'goalAccountAllocations:id,goal_id,amount',
+            'milestoneAchievements:id,goal_id,milestone_percentage,achieved_at',
             'owner:id,name',
+            'rewards:id,goal_id,milestone_percentage,title,description',
         ]);
+    }
+
+    /** @return list<array{milestone: GoalMilestone, achievement: \App\Models\GoalMilestoneAchievement|null, reward: GoalReward|null, presentationState: string}> */
+    #[Computed]
+    public function milestoneRows(): array
+    {
+        $goal = $this->goal;
+
+        return collect(GoalMilestone::cases())->map(function (GoalMilestone $milestone) use ($goal): array {
+            $achievement = $goal->milestoneAchievements->first(
+                fn ($achievement): bool => $achievement->milestone_percentage === $milestone,
+            );
+
+            return [
+                'milestone' => $milestone,
+                'achievement' => $achievement,
+                'reward' => $goal->rewards->first(
+                    fn (GoalReward $reward): bool => $reward->milestone_percentage === $milestone,
+                ),
+                'presentationState' => $achievement === null
+                    ? 'upcoming'
+                    : ($goal->hasReachedMilestone($milestone) ? 'achieved_current' : 'achieved_historical'),
+            ];
+        })->all();
     }
 
     /** @return Collection<int, GoalAccountAllocation> */
@@ -247,6 +289,69 @@ new #[Title('Goal allocations')] class extends Component {
         $this->afterWrite('Allocation removed.');
     }
 
+    public function startAddReward(int $milestonePercentage): void
+    {
+        $goal = $this->accessibleGoal();
+        Gate::authorize('update', $goal);
+        $milestone = GoalMilestone::tryFrom($milestonePercentage);
+        abort_if($milestone === null, 404);
+        abort_if($goal->milestoneAchievements()->where('milestone_percentage', $milestone->value)->exists(), 404);
+
+        $this->resetRewardEditor();
+        $this->rewardMilestone = $milestone->value;
+        $this->showRewardEditor = true;
+    }
+
+    public function editReward(int $rewardId): void
+    {
+        $goal = $this->accessibleGoal();
+        Gate::authorize('update', $goal);
+        $reward = $goal->rewards()->whereKey($rewardId)->first();
+        abort_if($reward === null, 404);
+        abort_if($goal->milestoneAchievements()->where('milestone_percentage', $reward->milestone_percentage->value)->exists(), 404);
+
+        $this->rewardId = $reward->id;
+        $this->rewardMilestone = $reward->milestone_percentage->value;
+        $this->rewardTitle = $reward->title;
+        $this->rewardDescription = $reward->description ?? '';
+        $this->resetValidation();
+        $this->showRewardEditor = true;
+    }
+
+    public function saveReward(SaveGoalReward $saveGoalReward): void
+    {
+        Gate::authorize('update', $this->accessibleGoal());
+        $this->rewardTitle = trim($this->rewardTitle);
+        $this->rewardDescription = trim($this->rewardDescription);
+        $validated = $this->validate([
+            'rewardMilestone' => ['required', 'integer', Rule::enum(GoalMilestone::class)],
+            'rewardTitle' => ['required', 'string', 'max:100'],
+            'rewardDescription' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $saveGoalReward->handle(
+            auth()->user(),
+            $this->goalId,
+            GoalMilestone::from($validated['rewardMilestone']),
+            $validated['rewardTitle'],
+            $validated['rewardDescription'] !== '' ? $validated['rewardDescription'] : null,
+            $this->rewardId,
+        );
+
+        $this->resetRewardEditor();
+        $this->showRewardEditor = false;
+        unset($this->goal, $this->milestoneRows);
+        session()->flash('status', 'Reward saved.');
+    }
+
+    public function removeReward(int $rewardId, DeleteGoalReward $deleteGoalReward): void
+    {
+        Gate::authorize('update', $this->accessibleGoal());
+        $deleteGoalReward->handle(auth()->user(), $this->goalId, $rewardId);
+        unset($this->goal, $this->milestoneRows);
+        session()->flash('status', 'Reward removed.');
+    }
+
     #[Computed]
     public function maximumAmount(): string
     {
@@ -366,6 +471,15 @@ new #[Title('Goal allocations')] class extends Component {
         $this->resetValidation();
         unset($this->maximumAmount, $this->maximumPercentage);
     }
+
+    private function resetRewardEditor(): void
+    {
+        $this->rewardId = null;
+        $this->rewardMilestone = null;
+        $this->rewardTitle = '';
+        $this->rewardDescription = '';
+        $this->resetValidation();
+    }
 }; ?>
 
 <section class="mx-auto w-full max-w-6xl space-y-6">
@@ -418,6 +532,63 @@ new #[Title('Goal allocations')] class extends Component {
     @if (BigDecimal::of($this->goal->remainingAmount())->isNegative())
             <flux:callout>The goal is overfunded by <x-money :currency="auth()->user()->currency" :amount="$this->goal->overfundedAmount()" />. Existing allocations are preserved; reduce or remove them if desired.</flux:callout>
     @endif
+
+    <section class="space-y-4" aria-labelledby="goal-milestones-heading">
+        @php($currentProgress = $this->goal->progressPercentage())
+        <div>
+            <flux:heading size="lg" level="2" id="goal-milestones-heading">Rewards &amp; Milestones</flux:heading>
+            <flux:text>Achievements remain part of the Goal's history even if funding later decreases.</flux:text>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach ($this->milestoneRows as $row)
+                @php($milestone = $row['milestone'])
+                @php($achievement = $row['achievement'])
+                @php($reward = $row['reward'])
+                @php($presentationState = $row['presentationState'])
+                @php($cardClasses = match ($presentationState) {
+                    'achieved_current' => 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30',
+                    'achieved_historical' => 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30',
+                    default => 'border-zinc-200 dark:border-zinc-700',
+                })
+                <article wire:key="goal-milestone-{{ $milestone->value }}" data-milestone-percentage="{{ $milestone->value }}" data-milestone-state="{{ $presentationState }}" class="space-y-3 rounded-xl border p-4 {{ $cardClasses }}">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-lg font-semibold tabular-nums">{{ $achievement ? '✓ ' : '○ ' }}{{ $milestone->label() }}</span>
+                        <flux:badge :color="$presentationState === 'achieved_current' ? 'green' : ($presentationState === 'achieved_historical' ? 'yellow' : 'zinc')">{{ $achievement ? 'Achieved' : 'Upcoming' }}</flux:badge>
+                    </div>
+                    @if ($achievement)
+                        <flux:text>Reached {{ $achievement->achieved_at->format('M j, Y') }}</flux:text>
+                    @endif
+                    @if ($presentationState === 'achieved_historical')
+                        <div class="space-y-1 text-amber-900 dark:text-amber-200">
+                            <p class="text-sm font-medium">Previously reached</p>
+                            <p class="text-sm tabular-nums">Current progress: {{ $currentProgress }}%</p>
+                        </div>
+                    @endif
+                    @if ($reward)
+                        <div class="space-y-1 rounded-lg bg-white/70 p-3 dark:bg-zinc-900/60">
+                            <p class="text-sm font-semibold">{{ $achievement ? 'Reward unlocked' : 'Reward' }}</p>
+                            <p>{{ $reward->title }}</p>
+                            @if ($reward->description)
+                                <flux:text>{{ $reward->description }}</flux:text>
+                            @endif
+                        </div>
+                    @elseif ($achievement)
+                        <flux:text>Milestone reached without a configured Reward.</flux:text>
+                    @endif
+                    @if ($this->goal->isOwnedBy(auth()->user()) && ! $achievement)
+                        <div class="flex flex-wrap gap-2">
+                            @if ($reward)
+                                <flux:button size="sm" wire:click="editReward({{ $reward->id }})">Edit reward</flux:button>
+                                <flux:button size="sm" variant="danger" wire:click="removeReward({{ $reward->id }})" wire:confirm="Remove this Reward?" wire:loading.attr="disabled">Remove</flux:button>
+                            @else
+                                <flux:button size="sm" wire:click="startAddReward({{ $milestone->value }})">Add reward</flux:button>
+                            @endif
+                        </div>
+                    @endif
+                </article>
+            @endforeach
+        </div>
+    </section>
 
     <section class="space-y-4" aria-labelledby="goal-members-heading">
         <flux:heading size="lg" level="2" id="goal-members-heading">Members</flux:heading>
@@ -519,6 +690,22 @@ new #[Title('Goal allocations')] class extends Component {
             <div class="flex justify-end gap-2">
                 <flux:modal.close><flux:button type="button">Cancel</flux:button></flux:modal.close>
                 <flux:button type="submit" variant="primary" wire:loading.attr="disabled" :disabled="$accountId === null">Save allocation</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showRewardEditor" class="md:w-150">
+        <form wire:submit="saveReward" class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ $rewardId ? 'Edit reward' : 'Add reward' }}</flux:heading>
+                <flux:text>{{ $rewardMilestone }}% milestone · Rewards become read-only once achieved.</flux:text>
+            </div>
+            <flux:error name="rewardMilestone" />
+            <flux:input wire:model="rewardTitle" label="Reward title" maxlength="100" required autocomplete="off" />
+            <flux:textarea wire:model="rewardDescription" label="Description (optional)" maxlength="500" rows="4" />
+            <div class="flex justify-end gap-2">
+                <flux:modal.close><flux:button type="button">Cancel</flux:button></flux:modal.close>
+                <flux:button type="submit" variant="primary" wire:loading.attr="disabled">Save reward</flux:button>
             </div>
         </form>
     </flux:modal>

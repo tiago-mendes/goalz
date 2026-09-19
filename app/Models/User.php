@@ -96,6 +96,12 @@ class User extends Authenticatable
         return $this->hasMany(GoalMembership::class);
     }
 
+    /** @return HasMany<GoalMilestoneNotification, $this> */
+    public function goalMilestoneNotifications(): HasMany
+    {
+        return $this->hasMany(GoalMilestoneNotification::class);
+    }
+
     /**
      * Get the user's initials
      */

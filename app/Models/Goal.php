@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\GoalFundingPlan;
 use App\GoalMembershipStatus;
+use App\GoalMilestone;
 use App\GoalStatus;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -143,6 +144,18 @@ class Goal extends Model
         return $this->hasMany(GoalAccountAllocation::class);
     }
 
+    /** @return HasMany<GoalMilestoneAchievement, $this> */
+    public function milestoneAchievements(): HasMany
+    {
+        return $this->hasMany(GoalMilestoneAchievement::class);
+    }
+
+    /** @return HasMany<GoalReward, $this> */
+    public function rewards(): HasMany
+    {
+        return $this->hasMany(GoalReward::class);
+    }
+
     public function allocatedAmount(): string
     {
         $total = BigDecimal::of('0.00');
@@ -165,6 +178,26 @@ class Goal extends Model
     public function fundingPlan(): GoalFundingPlan
     {
         return GoalFundingPlan::forGoal($this);
+    }
+
+    public function hasReachedMilestone(GoalMilestone $milestone): bool
+    {
+        return BigDecimal::of($this->allocatedAmount())->multipliedBy(100)
+            ->isGreaterThanOrEqualTo(BigDecimal::of($this->target_amount)->multipliedBy($milestone->value));
+    }
+
+    public function highestCurrentlyAchievedMilestone(): ?GoalMilestone
+    {
+        $achievements = $this->relationLoaded('milestoneAchievements')
+            ? $this->milestoneAchievements
+            : $this->milestoneAchievements()->get(['id', 'goal_id', 'milestone_percentage']);
+
+        $achievement = $achievements
+            ->filter(fn (GoalMilestoneAchievement $achievement): bool => $this->hasReachedMilestone($achievement->milestone_percentage))
+            ->sortByDesc(fn (GoalMilestoneAchievement $achievement): int => $achievement->milestone_percentage->value)
+            ->first();
+
+        return $achievement?->milestone_percentage;
     }
 
     public function overfundedAmount(): string

@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\Goal;
 use App\Models\GoalAccountAllocation;
 use App\Models\GoalMembership;
+use App\Models\GoalMilestoneNotification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +40,10 @@ class EndGoalMembership
             GoalAccountAllocation::query()
                 ->whereBelongsTo($goal)
                 ->whereIn('account_id', $accountIds)
+                ->delete();
+            GoalMilestoneNotification::query()
+                ->where('user_id', $memberUserId)
+                ->whereHas('achievement', fn ($query) => $query->where('goal_id', $goal->id))
                 ->delete();
             $membership->delete();
         }, attempts: 3);

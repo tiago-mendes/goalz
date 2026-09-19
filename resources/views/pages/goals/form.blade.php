@@ -1,8 +1,10 @@
 <?php
 
+use App\Actions\EvaluateGoalMilestones;
 use App\GoalStatus;
 use App\Models\Goal;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -34,7 +36,7 @@ new #[Title('Manage goal')] class extends Component {
         }
     }
 
-    public function save(): void
+    public function save(EvaluateGoalMilestones $evaluateGoalMilestones): void
     {
         $goal = $this->goalId === null ? auth()->user()->goals()->make() : $this->ownedGoal();
         Gate::authorize($goal->exists ? 'update' : 'create', $goal->exists ? $goal : Goal::class);
@@ -48,13 +50,23 @@ new #[Title('Manage goal')] class extends Component {
             'target_amount.not_in' => 'The target amount must be greater than zero.',
         ]);
 
-        $goal->fill($validated);
-        if (! $goal->exists) {
-            $goal->status = GoalStatus::Active;
-        }
-
         try {
-            $goal->save();
+            DB::transaction(function () use ($goal, $validated, $evaluateGoalMilestones): void {
+                $lockedGoal = $goal->exists
+                    ? auth()->user()->goals()->whereKey($goal->id)->lockForUpdate()->first()
+                    : auth()->user()->goals()->make();
+                abort_if($lockedGoal === null, 404);
+
+                $lockedGoal->fill($validated);
+                if (! $lockedGoal->exists) {
+                    $lockedGoal->status = GoalStatus::Active;
+                }
+                $lockedGoal->save();
+
+                if ($goal->exists) {
+                    $evaluateGoalMilestones->handle($lockedGoal);
+                }
+            }, attempts: 3);
         } catch (UniqueConstraintViolationException) {
             throw ValidationException::withMessages(['name' => 'The name has already been taken.']);
         }
