@@ -11,6 +11,7 @@ final readonly class CreditCardBill
     public function __construct(
         public BillingCycle $cycle,
         public string $total,
+        public string $totalSoFar,
         public Collection $expenses,
     ) {}
 }

@@ -67,6 +67,7 @@ class CreditCardBillPeriodsTest extends TestCase
             ->assertSeeText('Custom period')
             ->assertSeeText('2026-08-11 – 2026-09-12')
             ->assertSeeText('2026-09-20')
+            ->assertSeeText('Total so far')
             ->assertSeeText('R$ 20.00')
             ->assertSeeText([
                 'Boundary 2026-08-11', 'Boundary 2026-09-09', 'Boundary 2026-09-10',
@@ -84,6 +85,7 @@ class CreditCardBillPeriodsTest extends TestCase
         $this->assertSame('2026-09-12', $savedPeriod->end_date->toDateString());
         $this->assertSame($expenses->slice(1, 5)->pluck('id')->values()->all(), $page->get('bill')->expenses->pluck('id')->all());
         $this->assertSame('20.00', $page->get('bill')->total);
+        $this->assertSame('20.00', $page->get('bill')->totalSoFar);
     }
 
     public function test_override_is_due_month_specific_and_can_be_updated_then_reset(): void

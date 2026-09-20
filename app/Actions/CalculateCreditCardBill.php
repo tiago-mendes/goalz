@@ -5,8 +5,11 @@ namespace App\Actions;
 use App\BillingCycle;
 use App\CreditCardBill;
 use App\Models\CreditCard;
+use App\Models\Expense;
 use App\Models\User;
 use Brick\Math\BigDecimal;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 
 class CalculateCreditCardBill
 {
@@ -24,11 +27,35 @@ class CalculateCreditCardBill
             ->orderBy('id')
             ->get();
 
+        $total = $this->sumExpenses($expenses);
+
+        $cutoff = CarbonImmutable::today();
+        $totalSoFar = BigDecimal::of('0.00');
+
+        if ($cutoff->greaterThanOrEqualTo($cycle->start)) {
+            $cutoff = $cutoff->lessThan($cycle->end) ? $cutoff : $cycle->end;
+            $totalSoFar = $this->sumExpenses($expenses->filter(
+                fn (Expense $expense): bool => CarbonImmutable::parse((string) $expense->expense_date)->lessThanOrEqualTo($cutoff),
+            ));
+        }
+
+        return new CreditCardBill(
+            $cycle,
+            (string) $total->toScale(2),
+            (string) $totalSoFar->toScale(2),
+            $expenses,
+        );
+    }
+
+    /** @param Collection<int, Expense> $expenses */
+    private function sumExpenses(Collection $expenses): BigDecimal
+    {
         $total = BigDecimal::of('0.00');
+
         foreach ($expenses as $expense) {
             $total = $total->plus((string) $expense->amount);
         }
 
-        return new CreditCardBill($cycle, (string) $total->toScale(2), $expenses);
+        return $total;
     }
 }
