@@ -8,6 +8,7 @@ use App\CreditCardBillPeriodResolver;
 use App\Models\CreditCard;
 use App\ResolvedCreditCardBillPeriod;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Computed;
@@ -80,10 +81,14 @@ new #[Title('Credit card bill')] class extends Component {
         ]);
         $dueMonth = CarbonImmutable::createFromFormat('!Y-m', $this->selectedBillMonth);
 
-        $creditCard->billPeriods()->updateOrCreate(
-            ['due_year' => $dueMonth->year, 'due_month' => $dueMonth->month],
-            ['start_date' => $validated['periodStart'], 'end_date' => $validated['periodEnd']],
-        );
+        DB::transaction(function () use ($dueMonth, $validated): void {
+            $creditCard = $this->lockOwnedCreditCard();
+            Gate::authorize('update', $creditCard);
+            $creditCard->billPeriods()->updateOrCreate(
+                ['due_year' => $dueMonth->year, 'due_month' => $dueMonth->month],
+                ['start_date' => $validated['periodStart'], 'end_date' => $validated['periodEnd']],
+            );
+        }, attempts: 3);
 
         $this->resetValidation();
         unset($this->bill, $this->resolvedPeriod);
@@ -96,10 +101,14 @@ new #[Title('Credit card bill')] class extends Component {
         Gate::authorize('update', $creditCard);
         $dueMonth = CarbonImmutable::createFromFormat('!Y-m', $this->selectedBillMonth);
 
-        $creditCard->billPeriods()
-            ->where('due_year', $dueMonth->year)
-            ->where('due_month', $dueMonth->month)
-            ->delete();
+        DB::transaction(function () use ($dueMonth): void {
+            $creditCard = $this->lockOwnedCreditCard();
+            Gate::authorize('update', $creditCard);
+            $creditCard->billPeriods()
+                ->where('due_year', $dueMonth->year)
+                ->where('due_month', $dueMonth->month)
+                ->delete();
+        }, attempts: 3);
 
         $this->resetValidation();
         unset($this->bill, $this->resolvedPeriod);
@@ -140,6 +149,14 @@ new #[Title('Credit card bill')] class extends Component {
     private function ownedCreditCard(): CreditCard
     {
         $creditCard = auth()->user()->creditCards()->find($this->creditCardId);
+        abort_if($creditCard === null, 404);
+
+        return $creditCard;
+    }
+
+    private function lockOwnedCreditCard(): CreditCard
+    {
+        $creditCard = auth()->user()->creditCards()->whereKey($this->creditCardId)->lockForUpdate()->first();
         abort_if($creditCard === null, 404);
 
         return $creditCard;

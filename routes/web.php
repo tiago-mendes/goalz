@@ -39,7 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('goals/{goalId}/allocations', 'pages::goals.allocations')->whereNumber('goalId')->name('goals.allocations');
 });
 
-Route::middleware(['auth', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {
+Route::middleware(['auth', 'verified', 'can:manage-users'])->prefix('admin')->name('admin.')->group(function (): void {
     Route::redirect('/', '/admin/users')->name('index');
     Route::livewire('users', 'pages::admin.users.index')->name('users.index');
     Route::livewire('users/create', 'pages::admin.users.form')->name('users.create');
