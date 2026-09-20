@@ -180,7 +180,19 @@ new #[Title('Credit card bill')] class extends Component {
         <dl class="grid gap-2 sm:grid-cols-[auto_1fr] sm:gap-x-6">
             <dt>Cycle</dt><dd>{{ $this->bill->cycle->start->toDateString() }} – {{ $this->bill->cycle->end->toDateString() }}</dd>
             <dt>Due</dt><dd>{{ $this->bill->cycle->dueDate->toDateString() }}</dd>
-            <dt>Total</dt><dd class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->bill->total" /></dd>
+            <dt class="sr-only">Bill totals</dt>
+            <dd class="sm:col-span-2">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+                        <flux:text>Total so far</flux:text>
+                        <div class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->bill->totalSoFar" /></div>
+                    </div>
+                    <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+                        <flux:text>Expected total</flux:text>
+                        <div class="break-words text-2xl font-semibold tabular-nums"><x-money :currency="auth()->user()->currency" :amount="$this->bill->total" /></div>
+                    </div>
+                </div>
+            </dd>
         </dl>
     </div>
     <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\CalculateCreditCardBill;
+use App\BillingCycle;
 use App\BillingCycleResolver;
 use App\Models\Account;
 use App\Models\CreditCard;
@@ -53,6 +54,92 @@ class CreditCardBillsTest extends TestCase
         $this->assertSame('100.00', $account->refresh()->current_balance);
     }
 
+    public function test_bill_totals_split_expenses_by_today_with_inclusive_effective_boundaries(): void
+    {
+        $this->travelTo('2026-09-20 12:00:00');
+        $card = CreditCard::factory()->create(['cycle_start_day' => 10, 'due_day' => 20]);
+        $datesAndAmounts = [
+            '2026-09-09' => '1.00',
+            '2026-09-10' => '54.50',
+            '2026-09-20' => '164.80',
+            '2026-09-21' => '396.77',
+            '2026-10-09' => '400.00',
+            '2026-10-10' => '2.00',
+        ];
+        foreach ($datesAndAmounts as $date => $amount) {
+            Expense::factory()->for($card->user)->create([
+                'credit_card_id' => $card->id,
+                'expense_date' => $date,
+                'amount' => $amount,
+            ]);
+        }
+        $cycle = app(BillingCycleResolver::class)->dueIn(CarbonImmutable::parse('2026-10-01'), 10, 20);
+
+        $bill = app(CalculateCreditCardBill::class)->handle($card->user, $card, $cycle);
+
+        $this->assertSame('1016.07', $bill->total);
+        $this->assertSame('219.30', $bill->totalSoFar);
+        $this->assertCount(4, $bill->expenses);
+    }
+
+    public function test_future_bill_has_no_total_so_far_and_completed_bill_has_the_full_expected_total(): void
+    {
+        $this->travelTo('2026-09-20 12:00:00');
+        $futureCard = CreditCard::factory()->create(['cycle_start_day' => 10, 'due_day' => 20]);
+        Expense::factory()->for($futureCard->user)->create([
+            'credit_card_id' => $futureCard->id,
+            'expense_date' => '2026-10-10',
+            'amount' => '75.25',
+        ]);
+        $futureCycle = app(BillingCycleResolver::class)->dueIn(CarbonImmutable::parse('2026-11-01'), 10, 20);
+
+        $futureBill = app(CalculateCreditCardBill::class)->handle($futureCard->user, $futureCard, $futureCycle);
+
+        $this->assertSame('75.25', $futureBill->total);
+        $this->assertSame('0.00', $futureBill->totalSoFar);
+
+        $closedCard = CreditCard::factory()->create(['cycle_start_day' => 10, 'due_day' => 20]);
+        Expense::factory()->for($closedCard->user)->create([
+            'credit_card_id' => $closedCard->id,
+            'expense_date' => '2026-08-11',
+            'amount' => '164.80',
+        ]);
+        $closedCycle = new BillingCycle(
+            CarbonImmutable::parse('2026-08-11'),
+            CarbonImmutable::parse('2026-09-12'),
+            CarbonImmutable::parse('2026-09-20'),
+        );
+
+        $closedBill = app(CalculateCreditCardBill::class)->handle($closedCard->user, $closedCard, $closedCycle);
+
+        $this->assertSame('164.80', $closedBill->total);
+        $this->assertSame('164.80', $closedBill->totalSoFar);
+    }
+
+    public function test_deleted_expense_is_excluded_from_both_totals_until_restored(): void
+    {
+        $this->travelTo('2026-09-20 12:00:00');
+        $card = CreditCard::factory()->create(['cycle_start_day' => 10, 'due_day' => 20]);
+        $expense = Expense::factory()->for($card->user)->deleted()->create([
+            'credit_card_id' => $card->id,
+            'expense_date' => '2026-09-20',
+            'amount' => '54.50',
+        ]);
+        $cycle = app(BillingCycleResolver::class)->dueIn(CarbonImmutable::parse('2026-10-01'), 10, 20);
+
+        $deletedBill = app(CalculateCreditCardBill::class)->handle($card->user, $card, $cycle);
+
+        $this->assertSame('0.00', $deletedBill->total);
+        $this->assertSame('0.00', $deletedBill->totalSoFar);
+
+        $expense->deleted_by_user_at = null;
+        $expense->save();
+        $restoredBill = app(CalculateCreditCardBill::class)->handle($card->user, $card, $cycle);
+
+        $this->assertSame('54.50', $restoredBill->total);
+        $this->assertSame('54.50', $restoredBill->totalSoFar);
+    }
+
     public function test_editing_payment_source_immediately_changes_bill_membership_without_creating_an_adjustment(): void
     {
         $card = CreditCard::factory()->create(['cycle_start_day' => 13, 'due_day' => 20]);
@@ -90,6 +177,9 @@ class CreditCardBillsTest extends TestCase
 
         Livewire::test('pages::credit-cards.show', ['creditCardId' => $card->id])
             ->assertSeeText('Current / Projected Bill')
+            ->assertSeeText('Total so far')
+            ->assertSeeText('Expected total')
+            ->assertSeeText('R$ 0.00')
             ->assertSeeText('R$ 35.00')
             ->assertSeeText('2026-09-25')
             ->assertSeeText('2026-10-02')
