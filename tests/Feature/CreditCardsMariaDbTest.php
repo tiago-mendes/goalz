@@ -119,6 +119,27 @@ class CreditCardsMariaDbTest extends TestCase
         ]);
     }
 
+    public function test_bill_period_writes_lock_the_owned_card(): void
+    {
+        $card = CreditCard::factory()->create();
+        $this->actingAs($card->user);
+        $statements = [];
+        DB::listen(function ($query) use (&$statements): void {
+            $statements[] = mb_strtolower($query->sql);
+        });
+
+        Livewire::withQueryParams(['month' => '2026-09'])
+            ->test('pages::credit-cards.show', ['creditCardId' => $card->id])
+            ->set('periodStart', '2026-08-10')
+            ->set('periodEnd', '2026-09-09')
+            ->call('savePeriod')
+            ->assertHasNoErrors();
+
+        $this->assertTrue(collect($statements)->contains(
+            fn (string $sql): bool => str_contains($sql, 'from `credit_cards`') && str_contains($sql, 'for update'),
+        ));
+    }
+
     public function test_whole_user_deletion_removes_payment_sources_and_references_safely(): void
     {
         $fixedExpense = FixedExpense::factory()->create();

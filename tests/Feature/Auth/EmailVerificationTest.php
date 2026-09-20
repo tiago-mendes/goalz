@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\UserRole;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -28,6 +29,22 @@ class EmailVerificationTest extends TestCase
         $response = $this->actingAs($user)->get(route('verification.notice'));
 
         $response->assertOk();
+    }
+
+    public function test_unverified_users_cannot_access_financial_pages(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertRedirect(route('verification.notice'));
+    }
+
+    public function test_unverified_admins_cannot_access_user_management(): void
+    {
+        $admin = User::factory()->unverified()->create(['role' => UserRole::Admin]);
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertRedirect(route('verification.notice'));
     }
 
     public function test_email_can_be_verified(): void

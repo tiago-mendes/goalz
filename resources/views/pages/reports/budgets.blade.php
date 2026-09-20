@@ -2,18 +2,24 @@
 
 use App\Reports\BudgetReport;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 new #[Title('Budget Reports')] class extends Component {
     #[Url(history: true)] public string $month = '';
+    #[Locked]
     public string $selectedMonth = '';
 
     public function mount(): void
     {
-        $this->month = preg_match('/\A[0-9]{4}-[0-9]{2}\z/', $this->month) === 1 ? $this->month : now()->format('Y-m');
+        $valid = Validator::make(['month' => $this->month], [
+            'month' => ['required', 'string', 'date_format:Y-m', 'after_or_equal:1000-01', 'before_or_equal:9999-12'],
+        ])->passes();
+        $this->month = $valid ? $this->month : now()->format('Y-m');
         $this->selectedMonth = $this->month;
     }
 

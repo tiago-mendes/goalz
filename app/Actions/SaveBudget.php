@@ -37,7 +37,14 @@ class SaveBudget
         }
 
         return DB::transaction(function () use ($user, $category, $amount, $mode, $starts, $months, $existing, $current): BudgetRule {
-            $rules = BudgetRule::query()->whereBelongsTo($user)->where('expense_category_id', $category->id)->with('months')->lockForUpdate()->get();
+            $lockedCategory = ExpenseCategory::query()
+                ->whereBelongsTo($user)
+                ->whereKey($category->id)
+                ->lockForUpdate()
+                ->first();
+            abort_if($lockedCategory === null, 404);
+
+            $rules = BudgetRule::query()->whereBelongsTo($user)->where('expense_category_id', $lockedCategory->id)->with('months')->lockForUpdate()->get();
             if ($existing !== null) {
                 $existing = $rules->firstWhere('id', $existing->id);
                 abort_if($existing === null, 404);
@@ -52,7 +59,7 @@ class SaveBudget
             $this->ensureNoOverlap($rules, $candidate);
 
             $rule = $user->budgetRules()->create([
-                'expense_category_id' => $category->id,
+                'expense_category_id' => $lockedCategory->id,
                 'amount' => (string) BigDecimal::of($amount)->toScale(2),
                 'mode' => $mode,
                 'starts_month' => $mode === BudgetMode::Recurring ? $starts->toDateString() : $starts->toDateString(),
@@ -63,7 +70,7 @@ class SaveBudget
             }
 
             return $rule->load('months', 'expenseCategory');
-        });
+        }, attempts: 3);
     }
 
     private function validateAmount(string $amount): void

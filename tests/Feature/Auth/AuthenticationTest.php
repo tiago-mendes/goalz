@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -49,6 +50,27 @@ class AuthenticationTest extends TestCase
             ->assertSessionMissing(auth()->guard()->getName());
 
         $this->assertGuest();
+    }
+
+    public function test_existing_session_is_revoked_when_the_user_becomes_inactive(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $this->actingAs($user);
+        $user->is_active = false;
+        $user->save();
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('login'));
+
+        $this->assertGuest();
+    }
+
+    public function test_active_user_check_is_applied_to_livewire_updates(): void
+    {
+        $route = app('router')->getRoutes()->getByName('default-livewire.update');
+
+        $this->assertNotNull($route);
+        $this->assertContains(EnsureUserIsActive::class, app('router')->gatherRouteMiddleware($route));
     }
 
     public function test_unknown_users_cannot_authenticate(): void

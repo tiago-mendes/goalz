@@ -16,6 +16,7 @@ use App\Reports\BudgetReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -301,6 +302,40 @@ class BudgetTest extends TestCase
             ->assertSeeText('No budgets configured')
             ->assertSeeText('No budget configured')
             ->assertDontSeeText('On track');
+    }
+
+    #[DataProvider('invalidReportMonthProvider')]
+    public function test_budget_report_rejects_invalid_query_string_months(string $month): void
+    {
+        $this->travelTo('2026-09-15');
+        $this->actingAs(User::factory()->create());
+
+        Livewire::withQueryParams(['month' => $month])
+            ->test('pages::reports.budgets')
+            ->assertSet('month', '2026-09')
+            ->assertSet('selectedMonth', '2026-09');
+    }
+
+    /** @return array<string, array{string}> */
+    public static function invalidReportMonthProvider(): array
+    {
+        return [
+            'empty' => [''],
+            'month zero' => ['2026-00'],
+            'month thirteen' => ['2026-13'],
+            'malformed' => ['not-a-month'],
+            'below supported range' => ['0999-12'],
+            'above supported range' => ['10000-01'],
+        ];
+    }
+
+    public function test_budget_report_selected_month_cannot_be_tampered_with(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $page = Livewire::test('pages::reports.budgets');
+
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+        $page->set('selectedMonth', '2026-13');
     }
 
     public function test_management_rejects_foreign_category_and_invalid_amount(): void
