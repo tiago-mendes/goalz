@@ -108,7 +108,7 @@ new #[Title('Statement Imports')] class extends Component {
         $this->resetValidation();
     }
 
-    public function upload(CreateStatementImport $createStatementImport): void
+    public function createImport(CreateStatementImport $createStatementImport): void
     {
         Gate::authorize('create', StatementImport::class);
 
@@ -229,7 +229,7 @@ new #[Title('Statement Imports')] class extends Component {
         <flux:callout>{{ session('status') }}</flux:callout>
     @endif
 
-    <form wire:submit="upload" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
+    <form wire:submit="createImport" class="space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-700">
         <div>
             <flux:heading size="lg">Upload a statement</flux:heading>
             <flux:text class="mt-1">Choose the document context before upload. PDFs remain private, and no Expenses are created in this phase.</flux:text>
@@ -279,9 +279,9 @@ new #[Title('Statement Imports')] class extends Component {
         <flux:input type="file" wire:model="statement" label="PDF Statement" accept="application/pdf,.pdf" />
         <flux:error name="statement" />
 
-        <flux:button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="statement,upload">
-            <span wire:loading.remove wire:target="statement,upload">Upload statement</span>
-            <span wire:loading wire:target="statement,upload">Uploading…</span>
+        <flux:button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="statement,createImport">
+            <span wire:loading.remove wire:target="statement,createImport">Upload statement</span>
+            <span wire:loading wire:target="statement,createImport">Uploading…</span>
         </flux:button>
     </form>
 

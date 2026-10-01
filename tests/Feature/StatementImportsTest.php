@@ -55,7 +55,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->bankStatementFields($account))
             ->set('statement', $this->validPdf('Extrato Itaú Setembro 2026.pdf'))
-            ->call('upload')
+            ->call('createImport')
             ->assertHasNoErrors()
             ->assertSeeText('Statement uploaded securely.')
             ->assertSeeText('Extrato Itaú Setembro 2026.pdf')
@@ -94,7 +94,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->creditCardBillFields($creditCard, '2026-10'))
             ->set('statement', $this->validPdf('Fatura outubro.pdf'))
-            ->call('upload')
+            ->call('createImport')
             ->assertHasNoErrors()
             ->assertSeeText('Credit Card Bill')
             ->assertSeeText('Itaú')
@@ -139,14 +139,14 @@ class StatementImportsTest extends TestCase
             ->set($this->bankStatementFields($account))
             ->set('bill_due_month', '2026-10')
             ->set('statement', $this->validPdf())
-            ->call('upload')
+            ->call('createImport')
             ->assertHasErrors(['bill_due_month' => 'prohibited']);
 
         Livewire::test('pages::statement-imports.index')
             ->set('document_type', 'investment_report')
             ->set('institution', 'unsupported-bank')
             ->set('statement', $this->validPdf())
-            ->call('upload')
+            ->call('createImport')
             ->assertHasErrors(['document_type', 'institution']);
 
         $this->assertSame(0, StatementImport::query()->count());
@@ -172,7 +172,7 @@ class StatementImportsTest extends TestCase
             $foreignSource = Account::factory()->for($owner)->inactive()->create(['name' => 'Private historical account']);
             $component->set('document_type', StatementDocumentType::BankStatement->value)
                 ->set('account_id', (string) $foreignSource->id)
-                ->call('upload')
+                ->call('createImport')
                 ->assertHasErrors('account_id')
                 ->assertSeeText('The selected account is unavailable.');
         } else {
@@ -180,7 +180,7 @@ class StatementImportsTest extends TestCase
             $component->set('document_type', StatementDocumentType::CreditCardBill->value)
                 ->set('credit_card_id', (string) $foreignSource->id)
                 ->set('bill_due_month', '2026-10')
-                ->call('upload')
+                ->call('createImport')
                 ->assertHasErrors('credit_card_id')
                 ->assertSeeText('The selected credit card is unavailable.');
         }
@@ -268,7 +268,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->creditCardBillFields($creditCard, $dueMonth))
             ->set('statement', $this->validPdf())
-            ->call('upload')
+            ->call('createImport')
             ->assertHasErrors('bill_due_month')
             ->assertSeeText('Choose a valid bill due month.');
 
@@ -305,7 +305,7 @@ class StatementImportsTest extends TestCase
             $component->set('credit_card_id', (string) $inactiveSource->id)->set('bill_due_month', '2026-10');
         }
 
-        $component->call('upload')->assertHasNoErrors();
+        $component->call('createImport')->assertHasNoErrors();
         $this->assertFalse($inactiveSource->refresh()->is_active);
         $this->assertSame($inactiveSource->id, $user->statementImports()->sole()->{$sourceType.'_id'});
     }
@@ -330,8 +330,8 @@ class StatementImportsTest extends TestCase
         $this->actingAs($account->user);
         $component = Livewire::test('pages::statement-imports.index')->set($this->bankStatementFields($account));
 
-        $component->set('statement', $this->validPdf('first.pdf'))->call('upload')->assertHasNoErrors();
-        $component->set('statement', $this->validPdf('second.pdf'))->call('upload')->assertHasNoErrors();
+        $component->set('statement', $this->validPdf('first.pdf'))->call('createImport')->assertHasNoErrors();
+        $component->set('statement', $this->validPdf('second.pdf'))->call('createImport')->assertHasNoErrors();
 
         $imports = $account->user->statementImports()->orderBy('id')->get();
         $this->assertCount(2, $imports);
@@ -351,7 +351,7 @@ class StatementImportsTest extends TestCase
             Livewire::test('pages::statement-imports.index')
                 ->set($this->bankStatementFields($account))
                 ->set('statement', $this->validPdf($index === 0 ? 'first-user.pdf' : 'second-user-private.pdf'))
-                ->call('upload')
+                ->call('createImport')
                 ->assertHasNoErrors();
         }
 
@@ -399,7 +399,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->bankStatementFields($account))
             ->set('statement', $this->validPdf('../../dangerous name ç.pdf'))
-            ->call('upload')
+            ->call('createImport')
             ->assertHasNoErrors();
 
         $statementImport = $account->user->statementImports()->sole();
@@ -422,7 +422,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->bankStatementFields($account))
             ->set('statement', UploadedFile::fake()->createWithContent($filename, $contents)->mimeType($detectedMimeType))
-            ->call('upload')
+            ->call('createImport')
             ->assertHasErrors(['statement']);
 
         $this->assertSame(0, $account->user->statementImports()->count());
@@ -442,7 +442,7 @@ class StatementImportsTest extends TestCase
         Livewire::test('pages::statement-imports.index')
             ->set($this->bankStatementFields($account))
             ->set('statement', $oversizedPdf)
-            ->call('upload')
+            ->call('createImport')
             ->assertHasErrors(['statement'])
             ->assertSeeText('The statement must not be larger than 10 MB.');
 
