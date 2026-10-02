@@ -8,6 +8,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('expenses', 'pages::expenses.index')->name('expenses.index');
     Route::livewire('expenses/create', 'pages::expenses.form')->name('expenses.create');
     Route::livewire('expenses/{expenseId}/edit', 'pages::expenses.form')->whereNumber('expenseId')->name('expenses.edit');
+    Route::livewire('statement-imports', 'pages::statement-imports.index')->name('statement-imports.index');
     Route::livewire('fixed-expenses', 'pages::fixed-expenses.index')->name('fixed-expenses.index');
     Route::livewire('fixed-expenses/create', 'pages::fixed-expenses.form')->name('fixed-expenses.create');
     Route::livewire('fixed-expenses/{fixedExpenseId}/edit', 'pages::fixed-expenses.form')->whereNumber('fixedExpenseId')->name('fixed-expenses.edit');

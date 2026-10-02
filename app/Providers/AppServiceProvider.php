@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Contracts\PdfTextExtractor;
 use App\Models\User;
+use App\Support\PopplerPdfTextExtractor;
 use App\UserRole;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -18,7 +20,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(PdfTextExtractor::class, fn (): PopplerPdfTextExtractor => new PopplerPdfTextExtractor(
+            pdftotextBinary: (string) config('statement-imports.pdftotext_binary'),
+            pdfinfoBinary: (string) config('statement-imports.pdfinfo_binary'),
+            timeoutSeconds: (float) config('statement-imports.timeout_seconds'),
+            maxPages: (int) config('statement-imports.max_pages'),
+            maxExtractedBytes: (int) config('statement-imports.max_extracted_bytes'),
+            maxMetadataBytes: (int) config('statement-imports.max_metadata_bytes'),
+            maxDiagnosticBytes: (int) config('statement-imports.max_diagnostic_bytes'),
+        ));
     }
 
     /**
