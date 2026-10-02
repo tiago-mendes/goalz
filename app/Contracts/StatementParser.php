@@ -2,8 +2,11 @@
 
 namespace App\Contracts;
 
-/**
- * Contract for future bank-specific parsers that transform a private statement
- * into normalized, expense-independent domain data.
- */
-interface StatementParser {}
+use App\ExtractedPdf;
+use App\ParsedStatement;
+use App\StatementParserContext;
+
+interface StatementParser
+{
+    public function parse(ExtractedPdf $document, StatementParserContext $context): ParsedStatement;
+}
