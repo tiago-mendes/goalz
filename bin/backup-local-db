@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+# Usage: ./bin/backup-local-db
+
+fail() {
+    printf 'Error: %s\n' "$1" >&2
+    exit 1
+}
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+app_dir="$(cd -- "$script_dir/.." && pwd -P)"
+warden_dir="$(cd -- "$app_dir/.." && pwd -P)"
+backup_dir="$app_dir/storage/app/private/database-backups"
+
+command -v warden >/dev/null 2>&1 || fail 'Warden is unavailable.'
+[[ -f "$warden_dir/.warden/warden-env.yml" ]] || fail 'This is not the local Goalz Warden project.'
+
+if ! warden env ps >/dev/null 2>&1; then
+    fail 'Warden services are unavailable. Start the local Goalz Warden environment and try again.'
+fi
+
+if ! warden env exec -T db sh -c 'command -v mariadb-dump >/dev/null 2>&1 || command -v mysqldump >/dev/null 2>&1' >/dev/null 2>&1; then
+    fail 'The Warden database container is unavailable or has no MariaDB dump client.'
+fi
+
+if ! warden env exec -T php-fpm php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$name = config("database.default");
+$connection = config("database.connections.".$name, []);
+$driver = $connection["driver"] ?? "";
+$valid = in_array($name, ["mysql", "mariadb"], true)
+    && in_array($driver, ["mysql", "mariadb"], true)
+    && ($connection["host"] ?? null) === "db"
+    && (string) ($connection["port"] ?? "") === "3306"
+    && ($connection["database"] ?? null) === "laravel"
+    && empty($connection["url"]);
+if (!$valid) {
+    fwrite(STDERR, "The configured database is not the local Goalz Warden laravel database.\n");
+    exit(1);
+}
+' >/dev/null 2>&1; then
+    fail 'The expected local Goalz Warden database could not be confirmed (expected db:3306/laravel).'
+fi
+
+timestamp="$(date '+%Y%m%d-%H%M%S')"
+filename="goalz-laravel-${timestamp}.sql.gz"
+final_path="$backup_dir/$filename"
+[[ ! -e "$final_path" ]] || fail "A backup already exists for timestamp $timestamp; try again in a second."
+
+mkdir -p -- "$backup_dir" || fail 'Could not create the private backup directory.'
+chmod 700 -- "$backup_dir" || fail 'Could not secure the private backup directory.'
+temporary_path="$(mktemp "$backup_dir/.${filename}.XXXXXX.tmp")" || fail 'Could not create a temporary backup file.'
+
+cleanup() {
+    if [[ -n "${temporary_path:-}" && -e "$temporary_path" ]]; then
+        rm -f -- "$temporary_path"
+    fi
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+if ! warden env exec -T php-fpm php -r '
+require "/var/www/html/vendor/autoload.php";
+$app = require "/var/www/html/bootstrap/app.php";
+$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$name = config("database.default");
+$connection = config("database.connections.".$name, []);
+$driver = $connection["driver"] ?? "";
+$valid = in_array($name, ["mysql", "mariadb"], true)
+    && in_array($driver, ["mysql", "mariadb"], true)
+    && ($connection["host"] ?? null) === "db"
+    && (string) ($connection["port"] ?? "") === "3306"
+    && ($connection["database"] ?? null) === "laravel"
+    && empty($connection["url"]);
+if (!$valid) {
+    fwrite(STDERR, "The configured database is not the local Goalz Warden laravel database.\n");
+    exit(1);
+}
+$quote = static fn (mixed $value): string => "\"".str_replace(
+    ["\\", "\"", "\n", "\r"],
+    ["\\\\", "\\\"", "\\n", "\\r"],
+    (string) $value,
+)."\"";
+echo "[client]\n";
+echo "user=".$quote($connection["username"] ?? "")."\n";
+echo "password=".$quote($connection["password"] ?? "")."\n";
+echo "host=127.0.0.1\nport=3306\n";
+' | warden env exec -T db sh -c '
+set -eu
+client_file="$(mktemp /tmp/goalz-db-client.XXXXXX)"
+trap '\''rm -f -- "$client_file"'\'' EXIT
+trap '\''exit 1'\'' HUP INT TERM
+chmod 600 -- "$client_file"
+cat > "$client_file"
+test -s "$client_file"
+dump_client="$1"
+shift
+"$dump_client" --defaults-extra-file="$client_file" \
+    --single-transaction --quick --routines --triggers --events --hex-blob laravel
+' backup-local-db "$(warden env exec -T db sh -c 'command -v mariadb-dump || command -v mysqldump' 2>/dev/null)" | gzip -c > "$temporary_path"; then
+    fail 'Database dump or compression failed; the partial backup was removed.'
+fi
+
+if ! gzip -t -- "$temporary_path"; then
+    fail 'The compressed backup failed gzip validation.'
+fi
+
+if ! gzip -cd -- "$temporary_path" | awk '
+/^[[:space:]]*CREATE TABLE[[:space:]]+`?migrations`?[[:space:]]*\(/ { migrations = 1 }
+/^[[:space:]]*CREATE TABLE[[:space:]]+`?users`?[[:space:]]*\(/ { users = 1 }
+END { if (!migrations || !users) exit 1 }
+'; then
+    fail 'The backup did not contain the expected Goalz migrations and users table definitions.'
+fi
+
+size="$(du -h -- "$temporary_path" | cut -f1)"
+if ! mv -T -n -- "$temporary_path" "$final_path" || [[ -e "$temporary_path" || ! -s "$final_path" ]]; then
+    fail 'Could not atomically publish the completed backup file.'
+fi
+temporary_path=''
+
+printf 'Goalz local database backup created successfully.\n'
+printf 'Path: storage/app/private/database-backups/%s\n' "$filename"
+printf 'Size: %s\n' "$size"
